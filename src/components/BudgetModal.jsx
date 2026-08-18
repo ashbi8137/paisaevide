@@ -160,7 +160,7 @@ export function BudgetModal({ isOpen, onClose, month, categories = [], currentBu
               display: 'block'
             }}
           >
-            Monthly Salary / Total Allotted Income (₹)
+            Total Monthly Expense Budget (₹)
           </label>
           <input
             type="number"
