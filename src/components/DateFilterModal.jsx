@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Filter, X, Check } from 'lucide-react';
+import { CustomDatePicker } from './CustomDatePicker';
 
 export function DateFilterModal({ isOpen, onClose, activeFilter, onApplyFilter, todayStr }) {
   const [mode, setMode] = useState(activeFilter.mode === 'MONTH_RANGE' ? 'MONTH_RANGE' : 'DATE_RANGE');
@@ -90,22 +91,18 @@ export function DateFilterModal({ isOpen, onClose, activeFilter, onApplyFilter, 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.25rem' }}>
             <div className="clean-input-group" style={{ marginBottom: 0 }}>
               <label className="clean-label">From Date</label>
-              <input 
-                type="date"
-                max={todayStr}
-                className="clean-input"
+              <CustomDatePicker
                 value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
+                onChange={setFromDate}
+                maxDate={todayStr}
               />
             </div>
             <div className="clean-input-group" style={{ marginBottom: 0 }}>
               <label className="clean-label">To Date</label>
-              <input 
-                type="date"
-                max={todayStr}
-                className="clean-input"
+              <CustomDatePicker
                 value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
+                onChange={setToDate}
+                maxDate={todayStr}
               />
             </div>
           </div>

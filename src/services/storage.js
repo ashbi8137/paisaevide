@@ -4,7 +4,9 @@ const STORAGE_KEYS = {
   EXPENSES: 'paisaevide_expenses_v10',
   LOCKED_USER: 'paisaevide_user_v10',
   SUPABASE_CONFIG: 'expenso_supabase_cfg',
-  CUSTOM_CATEGORIES: 'expenso_custom_cats_v1'
+  CUSTOM_CATEGORIES: 'expenso_custom_cats_v1',
+  BUDGETS: 'paisaevide_budgets_v1',
+  QUICK_LOGS: 'paisaevide_quick_logs_v1'
 };
 
 let supabaseClientInstance = null;
@@ -207,3 +209,117 @@ export async function clearAllExpenses() {
     }
   }
 }
+
+// ─── Monthly Budget Storage ───────────────────────────────────────
+
+function getAllBudgets() {
+  const saved = localStorage.getItem(STORAGE_KEYS.BUDGETS);
+  if (saved) {
+    try { return JSON.parse(saved); } catch (e) {}
+  }
+  return {};
+}
+
+function saveAllBudgets(budgets) {
+  localStorage.setItem(STORAGE_KEYS.BUDGETS, JSON.stringify(budgets));
+}
+
+/**
+ * Get budget for a specific month.
+ * @param {string} month - e.g. '2026-08'
+ * @returns {{ salary: number, allocations: Record<string, number> } | null}
+ */
+export function getBudget(month) {
+  const budgets = getAllBudgets();
+  return budgets[month] || null;
+}
+
+/**
+ * Save budget for a specific month.
+ * @param {string} month - e.g. '2026-08'
+ * @param {number} salary
+ * @param {Record<string, number>} allocations - { 'Food & Dining': 8000, ... }
+ */
+export function saveBudget(month, salary, allocations) {
+  const budgets = getAllBudgets();
+  budgets[month] = { salary: Number(salary) || 0, allocations: allocations || {} };
+  saveAllBudgets(budgets);
+  return budgets[month];
+}
+
+/**
+ * Auto-carry forward: if current month has no budget, copy from previous month.
+ * @param {string} currentMonth - e.g. '2026-08'
+ * @returns {{ salary: number, allocations: Record<string, number> } | null}
+ */
+export function autoCarryForwardBudget(currentMonth) {
+  const existing = getBudget(currentMonth);
+  if (existing) return existing;
+
+  // Calculate previous month string
+  const [y, m] = currentMonth.split('-').map(Number);
+  const prevDate = new Date(y, m - 2, 1); // m-1 is current month (0-indexed), m-2 is previous
+  const prevMonth = prevDate.getFullYear() + '-' + String(prevDate.getMonth() + 1).padStart(2, '0');
+
+  const prevBudget = getBudget(prevMonth);
+  if (prevBudget) {
+    saveBudget(currentMonth, prevBudget.salary, { ...prevBudget.allocations });
+    return getBudget(currentMonth);
+  }
+
+  return null;
+}
+
+// ─── Customizable Quick Logs Storage ───────────────────────────────
+
+const DEFAULT_QUICK_LOGS = [
+  { id: 'ql_breakfast', title: 'Breakfast', category: 'Food & Dining' },
+  { id: 'ql_lunch', title: 'Lunch', category: 'Food & Dining' },
+  { id: 'ql_dinner', title: 'Dinner', category: 'Food & Dining' },
+  { id: 'ql_tea', title: 'Tea', category: 'Food & Dining' },
+  { id: 'ql_uber', title: 'Uber', category: 'Transportation' },
+  { id: 'ql_grocery', title: 'Grocery', category: 'Shopping & Supplies' }
+];
+
+export function getStoredQuickLogs() {
+  const saved = localStorage.getItem(STORAGE_KEYS.QUICK_LOGS);
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    } catch (e) {}
+  }
+  return DEFAULT_QUICK_LOGS;
+}
+
+export function saveQuickLogs(list) {
+  localStorage.setItem(STORAGE_KEYS.QUICK_LOGS, JSON.stringify(list));
+  return list;
+}
+
+export function addQuickLog(title, category = 'Food & Dining') {
+  const current = getStoredQuickLogs();
+  const trimmed = title.trim();
+  if (!trimmed) return current;
+
+  // Don't add duplicate titles
+  if (current.some(item => item.title.toLowerCase() === trimmed.toLowerCase())) {
+    return current;
+  }
+
+  const newLog = {
+    id: 'ql_' + Date.now().toString(36),
+    title: trimmed,
+    category
+  };
+
+  const updated = [...current, newLog];
+  return saveQuickLogs(updated);
+}
+
+export function deleteQuickLog(idOrTitle) {
+  const current = getStoredQuickLogs();
+  const updated = current.filter(item => item.id !== idOrTitle && item.title !== idOrTitle);
+  return saveQuickLogs(updated);
+}
+

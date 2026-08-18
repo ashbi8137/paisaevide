@@ -37,13 +37,22 @@ import {
   getStoredCategories,
   saveCustomCategory,
   getLockedUser,
-  saveLockedUser
+  saveLockedUser,
+  getBudget,
+  saveBudget,
+  autoCarryForwardBudget,
+  getStoredQuickLogs,
+  addQuickLog as addQuickLogStorage,
+  deleteQuickLog as deleteQuickLogStorage
 } from './services/storage';
 
 import { AddCategoryModal } from './components/AddCategoryModal';
 import { WelcomeSetupScreen } from './components/WelcomeSetupScreen';
 import { DateFilterModal } from './components/DateFilterModal';
-import { Check } from 'lucide-react';
+import { BudgetModal } from './components/BudgetModal';
+import { CustomCategorySelect } from './components/CustomCategorySelect';
+import { CustomDatePicker } from './components/CustomDatePicker';
+import { Check, Wallet, Trash2 as TrashIcon, Settings } from 'lucide-react';
 
 // Inline Edit Form - renders directly below a transaction row
 function InlineEditForm({ expense, categories, todayStr, onSave, onCancel }) {
@@ -87,15 +96,11 @@ function InlineEditForm({ expense, categories, todayStr, onSave, onCancel }) {
       <div style={{ display: 'flex', gap: '0.5rem' }}>
         <div style={{ flex: 1 }}>
           <label style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.2rem', display: 'block' }}>Category</label>
-          <select value={category} onChange={(e) => setCategory(e.target.value)}
-            style={{ width: '100%', padding: '0.5rem 0.4rem', borderRadius: '10px', border: '1px solid #E2E8F0', fontSize: '0.8rem', fontWeight: 600, color: '#0F172A', background: '#FFF', outline: 'none', boxSizing: 'border-box' }}>
-            {categories.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
-          </select>
+          <CustomCategorySelect categories={categories} value={category} onChange={setCategory} />
         </div>
         <div style={{ flex: 1 }}>
           <label style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.2rem', display: 'block' }}>Date</label>
-          <input type="date" max={todayStr} value={date} onChange={(e) => setDate(e.target.value)}
-            style={{ width: '100%', padding: '0.5rem 0.4rem', borderRadius: '10px', border: '1px solid #E2E8F0', fontSize: '0.8rem', fontWeight: 600, color: '#0F172A', outline: 'none', boxSizing: 'border-box' }} required />
+          <CustomDatePicker value={date} onChange={setDate} maxDate={todayStr} />
         </div>
       </div>
 
@@ -125,6 +130,11 @@ export default function App() {
   const [isAddCatModalOpen, setIsAddCatModalOpen] = useState(false);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
+  const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
+
+  // Monthly Budget State
+  const currentMonth = new Date().toISOString().substring(0, 7); // e.g. '2026-08'
+  const [monthlyBudget, setMonthlyBudget] = useState(null);
 
   // Form State
   const todayStr = new Date().toISOString().split('T')[0];
@@ -134,7 +144,12 @@ export default function App() {
   const [date, setDate] = useState(todayStr);
   const [formError, setFormError] = useState('');
 
-  // Custom Date Filter State
+  // Quick Logs & Budget State
+  const [quickLogs, setQuickLogs] = useState([]);
+  const [isManagingQuickLogs, setIsManagingQuickLogs] = useState(false);
+  const [quickLogSuccessMsg, setQuickLogSuccessMsg] = useState('');
+  const [newQuickLogTitle, setNewQuickLogTitle] = useState('');
+  const [isAddingQuickLogInline, setIsAddingQuickLogInline] = useState(false);
   const [dateFilter, setDateFilter] = useState({
     mode: 'PRESET',
     preset: 'ALL',
@@ -153,7 +168,32 @@ export default function App() {
       setIsSetupDone(true);
       loadData();
     }
+
+    // Auto-carry-forward budget from last month
+    const budget = autoCarryForwardBudget(currentMonth) || getBudget(currentMonth);
+    setMonthlyBudget(budget);
+
+    // Load Quick Logs
+    setQuickLogs(getStoredQuickLogs());
   }, []);
+
+  const handleAddQuickLogItem = (itemTitle, itemCat) => {
+    if (!itemTitle || !itemTitle.trim()) return;
+    const updated = addQuickLogStorage(itemTitle, itemCat || 'Food & Dining');
+    setQuickLogs(updated);
+    setQuickLogSuccessMsg('Added to Quick Logs!');
+    setTimeout(() => setQuickLogSuccessMsg(''), 2000);
+  };
+
+  const handleDeleteQuickLogItem = (idOrTitle) => {
+    const updated = deleteQuickLogStorage(idOrTitle);
+    setQuickLogs(updated);
+  };
+
+  const handleSaveBudget = (data) => {
+    const saved = saveBudget(currentMonth, data.salary, data.allocations);
+    setMonthlyBudget(saved);
+  };
 
   const loadData = async () => {
     const loaded = await fetchExpenses();
@@ -470,10 +510,15 @@ export default function App() {
           {/* Summary Strip */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', margin: '0 1.25rem 1rem' }}>
             <div style={{ background: '#FFFFFF', padding: '0.85rem 1rem', borderRadius: '16px', border: '1px solid var(--border)' }}>
-              <div style={{ fontSize: '0.725rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Overall Total</div>
+              <div style={{ fontSize: '0.725rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>This Month</div>
               <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#3B82F6', marginTop: '0.2rem' }}>
-                ₹{grandTotal.toLocaleString('en-IN')}
+                ₹{(() => { const monthExpenses = (expenses || []).filter(e => e && e.date && e.date.startsWith(currentMonth)); return monthExpenses.reduce((s,e) => s + (Number(e.amount)||0), 0).toLocaleString('en-IN'); })()}
               </div>
+              {monthlyBudget && monthlyBudget.salary > 0 && (
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                  of ₹{monthlyBudget.salary.toLocaleString('en-IN')}
+                </div>
+              )}
             </div>
             <div style={{ background: '#FFFFFF', padding: '0.85rem 1rem', borderRadius: '16px', border: '1px solid var(--border)' }}>
               <div style={{ fontSize: '0.725rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Daily Routine Avg</div>
@@ -483,23 +528,80 @@ export default function App() {
             </div>
           </div>
 
-          {/* Static Non-Scrolling 1-Tap Quick Log Grid */}
+          {/* Customizable 1-Tap Quick Log Grid */}
           <div style={{ margin: '0 1.25rem 1.25rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.65rem' }}>
               <span style={{ fontSize: '0.775rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 1-Tap Quick Log
               </span>
+
+              <button
+                type="button"
+                onClick={() => setIsManagingQuickLogs(!isManagingQuickLogs)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: isManagingQuickLogs ? '#EF4444' : '#10B981',
+                  fontSize: '0.75rem',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.25rem'
+                }}
+              >
+                {isManagingQuickLogs ? 'Done' : 'Manage'}
+              </button>
             </div>
 
+            {/* Quick Log Grid (Clean 3-column layout) */}
             <div className="preset-grid">
-              {PRESETS.map((p, idx) => (
-                <button
-                  key={idx}
-                  className="preset-button"
-                  onClick={() => handleQuickAdd(p)}
-                >
-                  + {p.title}
-                </button>
+              {quickLogs.map((p) => (
+                <div key={p.id || p.title} style={{ position: 'relative' }}>
+                  <button
+                    type="button"
+                    className="preset-button"
+                    style={{ width: '100%', paddingRight: isManagingQuickLogs ? '1.5rem' : '0.5rem' }}
+                    onClick={() => {
+                      if (!isManagingQuickLogs) {
+                        handleQuickAdd(p);
+                      }
+                    }}
+                  >
+                    + {p.title}
+                  </button>
+
+                  {/* Delete Button (visible when managing) */}
+                  {isManagingQuickLogs && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteQuickLogItem(p.id || p.title);
+                      }}
+                      style={{
+                        position: 'absolute',
+                        right: '4px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: '#FEF2F2',
+                        border: '1px solid #FCA5A5',
+                        color: '#DC2626',
+                        width: '20px',
+                        height: '20px',
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        padding: 0
+                      }}
+                      title="Remove Quick Log"
+                    >
+                      <X size={11} />
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
           </div>
@@ -645,7 +747,18 @@ export default function App() {
             </div>
 
             <div className="clean-input-group">
-              <label className="clean-label">Expense Title</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                <label className="clean-label">Expense Title</label>
+                {title.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => handleAddQuickLogItem(title, category)}
+                    style={{ background: 'none', border: 'none', color: '#10B981', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer' }}
+                  >
+                    + Quick Log
+                  </button>
+                )}
+              </div>
               <input 
                 type="text"
                 className="clean-input"
@@ -659,10 +772,15 @@ export default function App() {
                 }}
                 required
               />
+              {quickLogSuccessMsg && (
+                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#10B981', marginTop: '0.2rem' }}>
+                  ✓ {quickLogSuccessMsg}
+                </div>
+              )}
             </div>
 
             <div className="clean-input-group">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
                 <label className="clean-label">Category</label>
                 <button
                   type="button"
@@ -672,26 +790,19 @@ export default function App() {
                   + Custom Category
                 </button>
               </div>
-              <select 
-                className="clean-input"
+              <CustomCategorySelect 
+                categories={categories}
                 value={category}
-                onChange={(e) => setCategory(e.target.value)}
-              >
-                {categories.map(c => (
-                  <option key={c.name} value={c.name}>{c.name}</option>
-                ))}
-              </select>
+                onChange={setCategory}
+              />
             </div>
 
             <div className="clean-input-group">
-              <label className="clean-label">Date (Past or Today only)</label>
-              <input 
-                type="date"
-                max={todayStr}
-                className="clean-input"
+              <label className="clean-label" style={{ marginBottom: '0.4rem', display: 'block' }}>Date (Past or Today only)</label>
+              <CustomDatePicker
                 value={date}
-                onChange={(e) => setDate(e.target.value)}
-                required
+                onChange={setDate}
+                maxDate={todayStr}
               />
             </div>
 
@@ -707,22 +818,74 @@ export default function App() {
       {activeTab === 'stats' && (
         <div style={{ padding: '0 1.25rem' }}>
           
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '1rem 0 1.25rem' }}>
-            <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-              Reports & Analytics
-            </h2>
-            
-            {/* CSV Backup */}
-            {expenses.length > 0 && (
-              <button 
-                onClick={handleExportCSV}
-                style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', color: '#2563EB', padding: '0.4rem 0.75rem', borderRadius: '12px', fontSize: '0.775rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
-              >
-                <Download size={15} />
-                <span>Export CSV</span>
-              </button>
-            )}
-          </div>
+    {/* Page Title */}
+    <div style={{ margin: '1rem 0 0.85rem' }}>
+      <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+        Reports & Analytics
+      </h2>
+    </div>
+
+    {/* Top Quick Actions Bar (Monthly Budget & Export CSV) */}
+    <div style={{ display: 'grid', gridTemplateColumns: expenses.length > 0 ? '1fr 1fr' : '1fr', gap: '0.65rem', marginBottom: '1rem' }}>
+      <button
+        type="button"
+        onClick={() => setIsBudgetModalOpen(!isBudgetModalOpen)}
+        style={{ 
+          background: isBudgetModalOpen ? '#10B981' : '#FFFFFF', 
+          border: `1px solid ${isBudgetModalOpen ? '#10B981' : 'var(--border)'}`, 
+          color: isBudgetModalOpen ? '#FFFFFF' : 'var(--text-primary)', 
+          padding: '0.6rem 0.85rem', 
+          borderRadius: '14px', 
+          fontSize: '0.825rem', 
+          fontWeight: 800, 
+          cursor: 'pointer', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          gap: '0.4rem',
+          boxShadow: isBudgetModalOpen ? '0 4px 12px rgba(16, 185, 129, 0.25)' : '0 2px 4px rgba(0,0,0,0.02)',
+          transition: 'all 0.15s ease'
+        }}
+      >
+        <Wallet size={16} color={isBudgetModalOpen ? '#FFFFFF' : '#10B981'} />
+        <span>{isBudgetModalOpen ? 'Close Budget' : 'Monthly Budget'}</span>
+      </button>
+
+      {expenses.length > 0 && (
+        <button 
+          type="button"
+          onClick={handleExportCSV}
+          style={{ 
+            background: '#FFFFFF', 
+            border: '1px solid var(--border)', 
+            color: 'var(--text-primary)', 
+            padding: '0.6rem 0.85rem', 
+            borderRadius: '14px', 
+            fontSize: '0.825rem', 
+            fontWeight: 800, 
+            cursor: 'pointer', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            gap: '0.4rem',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+          }}
+        >
+          <Download size={16} color="#3B82F6" />
+          <span>Export CSV</span>
+        </button>
+      )}
+    </div>
+
+          {/* Inline Budget Allocation Panel - Expands right below the button */}
+          <BudgetModal
+            isOpen={isBudgetModalOpen}
+            onClose={() => setIsBudgetModalOpen(false)}
+            month={currentMonth}
+            categories={categories}
+            currentBudget={monthlyBudget}
+            onSave={handleSaveBudget}
+          />
 
           {/* Analytical Overview Cards */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
@@ -833,17 +996,32 @@ export default function App() {
 
             return (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                {sorted.map((c, i) => (
-                  <div key={i} className="clean-card" style={{ margin: 0, padding: '1rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem', fontSize: '0.925rem' }}>
-                      <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{c.name}</span>
-                      <span style={{ fontWeight: 800, color: '#10B981' }}>₹{c.tot} ({c.pct}%)</span>
+                {sorted.map((c, i) => {
+                  const allocated = monthlyBudget?.allocations?.[c.name] || 0;
+                  const remaining = allocated - c.tot;
+                  const barPct = allocated > 0 ? Math.min(100, Math.round((c.tot / allocated) * 100)) : c.pct;
+                  const isOver = allocated > 0 && c.tot > allocated;
+                  const barColor = isOver ? '#EF4444' : '#10B981';
+
+                  return (
+                    <div key={i} className="clean-card" style={{ margin: 0, padding: '1rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem', fontSize: '0.925rem' }}>
+                        <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{c.name}</span>
+                        <span style={{ fontWeight: 800, color: barColor }}>
+                          ₹{c.tot.toLocaleString('en-IN')}{allocated > 0 ? ` / ₹${allocated.toLocaleString('en-IN')}` : ` (${c.pct}%)`}
+                        </span>
+                      </div>
+                      <div style={{ width: '100%', height: '8px', background: '#F1F5F9', borderRadius: '4px', overflow: 'hidden' }}>
+                        <div style={{ width: `${barPct}%`, height: '100%', background: barColor, borderRadius: '4px', transition: 'width 0.3s ease' }} />
+                      </div>
+                      {allocated > 0 && (
+                        <div style={{ fontSize: '0.725rem', fontWeight: 700, marginTop: '0.3rem', color: isOver ? '#EF4444' : '#059669' }}>
+                          {isOver ? `⚠️ Over by ₹${Math.abs(remaining).toLocaleString('en-IN')}` : `₹${remaining.toLocaleString('en-IN')} remaining`}
+                        </div>
+                      )}
                     </div>
-                    <div style={{ width: '100%', height: '8px', background: '#F1F5F9', borderRadius: '4px', overflow: 'hidden' }}>
-                      <div style={{ width: `${c.pct}%`, height: '100%', background: '#10B981', borderRadius: '4px' }} />
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             );
           })()}
