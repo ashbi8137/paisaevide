@@ -773,6 +773,39 @@ export default function App() {
             })}
           </div>
 
+          {/* Custom Date Filter - right below preset buttons */}
+          <div style={{ marginBottom: '1rem' }}>
+            <button
+              type="button"
+              onClick={() => setIsFilterModalOpen(true)}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.4rem',
+                padding: '0.55rem 1rem',
+                borderRadius: '14px',
+                background: ['DATE_RANGE', 'MONTH_RANGE'].includes(dateFilter.mode) ? '#10B981' : '#FFFFFF',
+                color: ['DATE_RANGE', 'MONTH_RANGE'].includes(dateFilter.mode) ? '#FFFFFF' : 'var(--text-primary)',
+                border: ['DATE_RANGE', 'MONTH_RANGE'].includes(dateFilter.mode) ? 'none' : '1px solid var(--border)',
+                fontWeight: 800,
+                fontSize: '0.825rem',
+                cursor: 'pointer'
+              }}
+            >
+              <SlidersHorizontal size={15} />
+              <span>{['DATE_RANGE', 'MONTH_RANGE'].includes(dateFilter.mode) ? `Filter: ${dateFilter.label}` : 'Custom Date Filter'}</span>
+              {['DATE_RANGE', 'MONTH_RANGE'].includes(dateFilter.mode) && (
+                <span
+                  onClick={(e) => { e.stopPropagation(); setDateFilter({ mode: 'PRESET', preset: 'ALL', label: 'All Time' }); }}
+                  style={{ marginLeft: '0.3rem', display: 'flex', alignItems: 'center' }}
+                >
+                  <X size={14} />
+                </span>
+              )}
+            </button>
+          </div>
 
           {/* Category Distribution Breakdown */}
           {(() => {
@@ -815,39 +848,7 @@ export default function App() {
             );
           })()}
 
-          {/* Filter Button - placed below category breakdown for easy access */}
-          <div style={{ marginTop: '1rem' }}>
-            <button
-              type="button"
-              onClick={() => setIsFilterModalOpen(true)}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.4rem',
-                padding: '0.65rem 1rem',
-                borderRadius: '14px',
-                background: ['DATE_RANGE', 'MONTH_RANGE'].includes(dateFilter.mode) ? '#10B981' : '#FFFFFF',
-                color: ['DATE_RANGE', 'MONTH_RANGE'].includes(dateFilter.mode) ? '#FFFFFF' : 'var(--text-primary)',
-                border: ['DATE_RANGE', 'MONTH_RANGE'].includes(dateFilter.mode) ? 'none' : '1px solid var(--border)',
-                fontWeight: 800,
-                fontSize: '0.85rem',
-                cursor: 'pointer'
-              }}
-            >
-              <SlidersHorizontal size={16} />
-              <span>{['DATE_RANGE', 'MONTH_RANGE'].includes(dateFilter.mode) ? `Filter: ${dateFilter.label}` : 'Custom Date Filter'}</span>
-              {['DATE_RANGE', 'MONTH_RANGE'].includes(dateFilter.mode) && (
-                <span
-                  onClick={(e) => { e.stopPropagation(); setDateFilter({ mode: 'PRESET', preset: 'ALL', label: 'All Time' }); }}
-                  style={{ marginLeft: '0.3rem', display: 'flex', alignItems: 'center' }}
-                >
-                  <X size={14} />
-                </span>
-              )}
-            </button>
-          </div>
+
 
         </div>
       )}
