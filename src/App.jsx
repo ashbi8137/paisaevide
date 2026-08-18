@@ -825,8 +825,8 @@ export default function App() {
       </h2>
     </div>
 
-    {/* Top Quick Actions Bar (Monthly Budget & Export CSV) */}
-    <div style={{ display: 'grid', gridTemplateColumns: expenses.length > 0 ? '1fr 1fr' : '1fr', gap: '0.65rem', marginBottom: '1rem' }}>
+    {/* Top Quick Actions Bar (Monthly Budget & Export CSV - Always 2 columns) */}
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem', marginBottom: '1rem' }}>
       <button
         type="button"
         onClick={() => setIsBudgetModalOpen(!isBudgetModalOpen)}
@@ -851,30 +851,28 @@ export default function App() {
         <span>{isBudgetModalOpen ? 'Close Budget' : 'Monthly Budget'}</span>
       </button>
 
-      {expenses.length > 0 && (
-        <button 
-          type="button"
-          onClick={handleExportCSV}
-          style={{ 
-            background: '#FFFFFF', 
-            border: '1px solid var(--border)', 
-            color: 'var(--text-primary)', 
-            padding: '0.6rem 0.85rem', 
-            borderRadius: '14px', 
-            fontSize: '0.825rem', 
-            fontWeight: 800, 
-            cursor: 'pointer', 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center',
-            gap: '0.4rem',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
-          }}
-        >
-          <Download size={16} color="#3B82F6" />
-          <span>Export CSV</span>
-        </button>
-      )}
+      <button 
+        type="button"
+        onClick={handleExportCSV}
+        style={{ 
+          background: '#FFFFFF', 
+          border: '1px solid var(--border)', 
+          color: 'var(--text-primary)', 
+          padding: '0.6rem 0.85rem', 
+          borderRadius: '14px', 
+          fontSize: '0.825rem', 
+          fontWeight: 800, 
+          cursor: 'pointer', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          gap: '0.4rem',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+        }}
+      >
+        <Download size={16} color="#3B82F6" />
+        <span>Export CSV</span>
+      </button>
     </div>
 
           {/* Inline Budget Allocation Panel - Expands right below the button */}
