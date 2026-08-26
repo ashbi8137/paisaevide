@@ -43,7 +43,9 @@ import {
   autoCarryForwardBudget,
   getStoredQuickLogs,
   addQuickLog as addQuickLogStorage,
-  deleteQuickLog as deleteQuickLogStorage
+  deleteQuickLog as deleteQuickLogStorage,
+  exportFullBackupJSON,
+  importFullBackupJSON
 } from './services/storage';
 
 import { AddCategoryModal } from './components/AddCategoryModal';
@@ -166,8 +168,8 @@ export default function App() {
     if (savedName) {
       setUserName(savedName);
       setIsSetupDone(true);
-      loadData();
     }
+    loadData();
 
     // Auto-carry-forward budget from last month
     const budget = autoCarryForwardBudget(currentMonth) || getBudget(currentMonth);
@@ -403,7 +405,7 @@ export default function App() {
   const isHigher = diffYesterday > 0;
   const absDiff = Math.abs(diffYesterday);
 
-  // CSV Export
+  // CSV & JSON Backup Export/Import
   const handleExportCSV = () => {
     if (expenses.length === 0) return;
     const headers = ['Date', 'Title', 'Amount', 'Category'];
@@ -416,6 +418,34 @@ export default function App() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleExportJSON = () => {
+    const jsonStr = exportFullBackupJSON();
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Paisaevide_Backup_${userName || 'Data'}_${todayStr}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleImportJSON = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const success = importFullBackupJSON(event.target.result);
+      if (success) {
+        loadData();
+        alert('Backup restored successfully!');
+      } else {
+        alert('Invalid backup file');
+      }
+    };
+    reader.readAsText(file);
   };
 
   // Filter Matching Helper Function (100% Crash-Proof)
@@ -512,7 +542,17 @@ export default function App() {
             <div style={{ background: '#FFFFFF', padding: '0.85rem 1rem', borderRadius: '16px', border: '1px solid var(--border)' }}>
               <div style={{ fontSize: '0.725rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>This Month</div>
               <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#3B82F6', marginTop: '0.2rem' }}>
-                ₹{(() => { const monthExpenses = (expenses || []).filter(e => e && e.date && e.date.startsWith(currentMonth)); return monthExpenses.reduce((s,e) => s + (Number(e.amount)||0), 0).toLocaleString('en-IN'); })()}
+                ₹{(() => { 
+                  const now = new Date();
+                  const cYear = now.getFullYear();
+                  const cMonth = now.getMonth() + 1;
+                  const monthExpenses = (expenses || []).filter(e => {
+                    if (!e || !e.date || typeof e.date !== 'string') return false;
+                    const parts = e.date.split('-').map(Number);
+                    return parts[0] === cYear && parts[1] === cMonth;
+                  });
+                  return monthExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0).toLocaleString('en-IN');
+                })()}
               </div>
               {monthlyBudget && monthlyBudget.salary > 0 && (
                 <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>

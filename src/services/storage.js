@@ -117,7 +117,7 @@ export async function fetchExpenses() {
         const missingRemote = merged.filter(i => !remoteIds.has(i.id));
         if (missingRemote.length > 0) {
           const payloads = missingRemote.map(toCleanPayload);
-          client.from('expenses').insert(payloads).then(() => {}).catch(() => {});
+          client.from('expenses').upsert(payloads, { onConflict: 'id' }).then(() => {}).catch(() => {});
         }
 
         return merged;
@@ -150,12 +150,12 @@ export async function addExpense(item) {
   if (client) {
     try {
       const payload = toCleanPayload(newItem);
-      const { error } = await client.from('expenses').insert([payload]);
+      const { error } = await client.from('expenses').upsert([payload], { onConflict: 'id' });
       if (error) {
-        console.error("Supabase insert error:", error.message);
+        console.warn("Supabase sync notice:", error.message);
       }
     } catch (e) {
-      console.error("Supabase insert exception:", e);
+      console.warn("Supabase sync exception:", e);
     }
   }
 
@@ -322,4 +322,59 @@ export function deleteQuickLog(idOrTitle) {
   const updated = current.filter(item => item.id !== idOrTitle && item.title !== idOrTitle);
   return saveQuickLogs(updated);
 }
+
+// ─── Full Data Backup (JSON Export & Import) ─────────────────────
+
+export function exportFullBackupJSON() {
+  const data = {
+    user: getLockedUser(),
+    expenses: JSON.parse(localStorage.getItem(STORAGE_KEYS.EXPENSES) || '[]'),
+    categories: getStoredCategories(),
+    budgets: JSON.parse(localStorage.getItem(STORAGE_KEYS.BUDGETS) || '{}'),
+    quickLogs: getStoredQuickLogs(),
+    exportedAt: new Date().toISOString()
+  };
+  return JSON.stringify(data, null, 2);
+}
+
+export function importFullBackupJSON(jsonStr) {
+  try {
+    const data = JSON.parse(jsonStr);
+    if (!data || typeof data !== 'object') return false;
+
+    if (Array.isArray(data.expenses)) {
+      const current = JSON.parse(localStorage.getItem(STORAGE_KEYS.EXPENSES) || '[]');
+      const itemMap = new Map();
+      current.forEach(i => i && i.id && itemMap.set(i.id, i));
+      data.expenses.forEach(i => i && i.id && itemMap.set(i.id, i));
+      const merged = Array.from(itemMap.values());
+      localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(merged));
+
+      // Sync imported items to Supabase in background
+      const client = getSupabaseClient();
+      if (client) {
+        const payloads = merged.map(toCleanPayload);
+        client.from('expenses').upsert(payloads, { onConflict: 'id' }).then(() => {}).catch(() => {});
+      }
+    }
+
+    if (data.user) {
+      saveLockedUser(data.user);
+    }
+
+    if (data.budgets && typeof data.budgets === 'object') {
+      localStorage.setItem(STORAGE_KEYS.BUDGETS, JSON.stringify(data.budgets));
+    }
+
+    if (Array.isArray(data.quickLogs)) {
+      saveQuickLogs(data.quickLogs);
+    }
+
+    return true;
+  } catch (e) {
+    console.error("Import backup error:", e);
+    return false;
+  }
+}
+
 
