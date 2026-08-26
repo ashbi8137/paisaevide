@@ -54,7 +54,7 @@ import { DateFilterModal } from './components/DateFilterModal';
 import { BudgetModal } from './components/BudgetModal';
 import { CustomCategorySelect } from './components/CustomCategorySelect';
 import { CustomDatePicker } from './components/CustomDatePicker';
-import { Check, Wallet, Trash2 as TrashIcon, Settings } from 'lucide-react';
+import { Check, Wallet, Trash2 as TrashIcon, Settings, ChevronDown, ChevronUp } from 'lucide-react';
 
 // Inline Edit Form - renders directly below a transaction row
 function InlineEditForm({ expense, categories, todayStr, onSave, onCancel }) {
@@ -128,11 +128,12 @@ export default function App() {
   const [expenses, setExpenses] = useState([]);
   const [categories, setCategories] = useState(CATEGORY_DEFINITIONS);
 
-  // Modals
+  // Modals & Expanded State
   const [isAddCatModalOpen, setIsAddCatModalOpen] = useState(false);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
   const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
+  const [expandedCategory, setExpandedCategory] = useState(null);
 
   // Monthly Budget State
   const currentMonth = new Date().toISOString().substring(0, 7); // e.g. '2026-08'
@@ -376,8 +377,15 @@ export default function App() {
   let yesterdayTotal = 0;
   let routineTotal = 0;
   let fixedTotal = 0;
-
   const dateTotalsMap = {};
+
+  const nowObj = new Date();
+  const cYear = nowObj.getFullYear();
+  const cMonth = nowObj.getMonth() + 1;
+
+  let thisMonthTotal = 0;
+  let thisMonthRoutineTotal = 0;
+  const thisMonthDateTotalsMap = {};
 
   (expenses || []).forEach(item => {
     if (!item || typeof item !== 'object') return;
@@ -387,7 +395,9 @@ export default function App() {
     if (item.date === yesterdayStr) yesterdayTotal += amt;
 
     const catName = item.category || 'Other';
-    if (item.is_fixed || ['Housing & Rent', 'Fitness & Health'].includes(catName)) {
+    const isFixed = item.is_fixed || ['Housing & Rent', 'Fitness & Health'].includes(catName);
+
+    if (isFixed) {
       fixedTotal += amt;
     } else {
       routineTotal += amt;
@@ -395,11 +405,23 @@ export default function App() {
 
     if (item.date && typeof item.date === 'string') {
       dateTotalsMap[item.date] = (dateTotalsMap[item.date] || 0) + amt;
+
+      const parts = item.date.split('-').map(Number);
+      if (parts[0] === cYear && parts[1] === cMonth) {
+        thisMonthTotal += amt;
+        if (!isFixed) {
+          thisMonthRoutineTotal += amt;
+        }
+        thisMonthDateTotalsMap[item.date] = (thisMonthDateTotalsMap[item.date] || 0) + amt;
+      }
     }
   });
 
   const activeDaysCount = Math.max(1, Object.keys(dateTotalsMap).length);
-  const dailyRoutineAvg = Math.round(routineTotal / activeDaysCount);
+  const dailyTotalAvg = Math.round(grandTotal / activeDaysCount);
+
+  const thisMonthActiveDays = Math.max(1, Object.keys(thisMonthDateTotalsMap).length);
+  const thisMonthDailyAvg = Math.round(thisMonthTotal / thisMonthActiveDays);
 
   const diffYesterday = todayTotal - yesterdayTotal;
   const isHigher = diffYesterday > 0;
@@ -539,31 +561,22 @@ export default function App() {
 
           {/* Summary Strip */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', margin: '0 1.25rem 1rem' }}>
+            {/* Card 1: THIS MONTH */}
             <div style={{ background: '#FFFFFF', padding: '0.85rem 1rem', borderRadius: '16px', border: '1px solid var(--border)' }}>
               <div style={{ fontSize: '0.725rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>This Month</div>
               <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#3B82F6', marginTop: '0.2rem' }}>
-                ₹{(() => { 
-                  const now = new Date();
-                  const cYear = now.getFullYear();
-                  const cMonth = now.getMonth() + 1;
-                  const monthExpenses = (expenses || []).filter(e => {
-                    if (!e || !e.date || typeof e.date !== 'string') return false;
-                    const parts = e.date.split('-').map(Number);
-                    return parts[0] === cYear && parts[1] === cMonth;
-                  });
-                  return monthExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0).toLocaleString('en-IN');
-                })()}
+                ₹{thisMonthTotal.toLocaleString('en-IN')}
               </div>
-              {monthlyBudget && monthlyBudget.salary > 0 && (
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                  of ₹{monthlyBudget.salary.toLocaleString('en-IN')}
-                </div>
-              )}
+              <div style={{ fontSize: '0.675rem', fontWeight: 600, color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                Total: ₹{grandTotal.toLocaleString('en-IN')}
+              </div>
             </div>
+
+            {/* Card 2: THIS MONTH AVG */}
             <div style={{ background: '#FFFFFF', padding: '0.85rem 1rem', borderRadius: '16px', border: '1px solid var(--border)' }}>
-              <div style={{ fontSize: '0.725rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Daily Routine Avg</div>
+              <div style={{ fontSize: '0.725rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>This Month Avg</div>
               <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#10B981', marginTop: '0.2rem' }}>
-                ~₹{dailyRoutineAvg}/day
+                ₹{thisMonthDailyAvg}/day
               </div>
             </div>
           </div>
@@ -934,7 +947,7 @@ export default function App() {
                 ₹{routineTotal.toLocaleString('en-IN')}
               </div>
               <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                Avg ~₹{dailyRoutineAvg}/day
+                Avg ~₹{dailyTotalAvg}/day
               </div>
             </div>
 
@@ -1040,21 +1053,95 @@ export default function App() {
                   const barPct = allocated > 0 ? Math.min(100, Math.round((c.tot / allocated) * 100)) : c.pct;
                   const isOver = allocated > 0 && c.tot > allocated;
                   const barColor = isOver ? '#EF4444' : '#10B981';
+                  const isExpanded = expandedCategory === c.name;
 
                   return (
-                    <div key={i} className="clean-card" style={{ margin: 0, padding: '1rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem', fontSize: '0.925rem' }}>
-                        <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{c.name}</span>
+                    <div 
+                      key={i} 
+                      className="clean-card" 
+                      onClick={() => setExpandedCategory(isExpanded ? null : c.name)}
+                      style={{ 
+                        margin: 0, 
+                        padding: '1rem', 
+                        cursor: 'pointer',
+                        border: isExpanded ? '1px solid #10B981' : '1px solid var(--border)',
+                        transition: 'all 0.15s ease',
+                        boxShadow: isExpanded ? '0 4px 14px rgba(16, 185, 129, 0.12)' : 'var(--shadow-soft)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem', fontSize: '0.925rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{c.name}</span>
+                          {isExpanded ? <ChevronUp size={16} color="#10B981" /> : <ChevronDown size={16} color="#94A3B8" />}
+                        </div>
                         <span style={{ fontWeight: 800, color: barColor }}>
                           ₹{c.tot.toLocaleString('en-IN')}{allocated > 0 ? ` / ₹${allocated.toLocaleString('en-IN')}` : ` (${c.pct}%)`}
                         </span>
                       </div>
+
                       <div style={{ width: '100%', height: '8px', background: '#F1F5F9', borderRadius: '4px', overflow: 'hidden' }}>
                         <div style={{ width: `${barPct}%`, height: '100%', background: barColor, borderRadius: '4px', transition: 'width 0.3s ease' }} />
                       </div>
+
                       {allocated > 0 && (
                         <div style={{ fontSize: '0.725rem', fontWeight: 700, marginTop: '0.3rem', color: isOver ? '#EF4444' : '#059669' }}>
                           {isOver ? `⚠️ Over by ₹${Math.abs(remaining).toLocaleString('en-IN')}` : `₹${remaining.toLocaleString('en-IN')} remaining`}
+                        </div>
+                      )}
+
+                      {/* Date-Wise Itemized History Breakdown */}
+                      {isExpanded && (
+                        <div 
+                          onClick={(e) => e.stopPropagation()} 
+                          style={{ marginTop: '0.85rem', paddingTop: '0.75rem', borderTop: '1px dashed #E2E8F0', animation: 'fadeIn 0.2s ease' }}
+                        >
+                          <div style={{ fontSize: '0.725rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span>Date-Wise History ({dateFilter.label})</span>
+                            <span style={{ color: '#10B981', textTransform: 'none' }}>Tap card to collapse</span>
+                          </div>
+
+                          {(() => {
+                            const catItems = filtered.filter(item => item.category === c.name);
+                            if (catItems.length === 0) {
+                              return <div style={{ fontSize: '0.8rem', color: '#94A3B8', textAlign: 'center', padding: '0.5rem 0' }}>No transactions recorded</div>;
+                            }
+
+                            // Group catItems by date
+                            const groupsMap = {};
+                            catItems.forEach(item => {
+                              const d = item.date || 'Unknown Date';
+                              if (!groupsMap[d]) groupsMap[d] = [];
+                              groupsMap[d].push(item);
+                            });
+
+                            const sortedDates = Object.keys(groupsMap).sort((a, b) => b.localeCompare(a));
+
+                            return (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                                {sortedDates.map(dateKey => (
+                                  <div key={dateKey} style={{ background: '#F8FAF9', borderRadius: '12px', padding: '0.55rem 0.75rem', border: '1px solid #E2E8F0' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem', borderBottom: '1px dashed #CBD5E1', paddingBottom: '0.2rem' }}>
+                                      <span style={{ fontSize: '0.725rem', fontWeight: 800, color: '#047857', textTransform: 'uppercase' }}>
+                                        {formatDateGroupHeader(dateKey)}
+                                      </span>
+                                      <span style={{ fontSize: '0.725rem', fontWeight: 800, color: '#047857' }}>
+                                        ₹{groupsMap[dateKey].reduce((sum, item) => sum + (Number(item.amount) || 0), 0).toLocaleString('en-IN')}
+                                      </span>
+                                    </div>
+
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                      {groupsMap[dateKey].map(item => (
+                                        <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
+                                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{item.title}</span>
+                                          <span style={{ fontWeight: 800, color: '#0F172A' }}>₹{Number(item.amount).toLocaleString('en-IN')}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          })()}
                         </div>
                       )}
                     </div>
