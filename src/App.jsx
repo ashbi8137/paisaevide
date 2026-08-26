@@ -383,9 +383,19 @@ export default function App() {
   const cYear = nowObj.getFullYear();
   const cMonth = nowObj.getMonth() + 1;
 
+  // Last Month Year & Month
+  const lastMonthYear = cMonth === 1 ? cYear - 1 : cYear;
+  const lastMonthNum = cMonth === 1 ? 12 : cMonth - 1;
+
   let thisMonthTotal = 0;
   let thisMonthRoutineTotal = 0;
+  let thisMonthFixedTotal = 0;
   const thisMonthDateTotalsMap = {};
+
+  let lastMonthTotal = 0;
+  let lastMonthRoutineTotal = 0;
+  let lastMonthFixedTotal = 0;
+  const lastMonthDateTotalsMap = {};
 
   (expenses || []).forEach(item => {
     if (!item || typeof item !== 'object') return;
@@ -407,12 +417,29 @@ export default function App() {
       dateTotalsMap[item.date] = (dateTotalsMap[item.date] || 0) + amt;
 
       const parts = item.date.split('-').map(Number);
-      if (parts[0] === cYear && parts[1] === cMonth) {
+      const yearNum = parts[0];
+      const monthNum = parts[1];
+
+      // Current Month matching
+      if (yearNum === cYear && monthNum === cMonth) {
         thisMonthTotal += amt;
-        if (!isFixed) {
+        if (isFixed) {
+          thisMonthFixedTotal += amt;
+        } else {
           thisMonthRoutineTotal += amt;
         }
         thisMonthDateTotalsMap[item.date] = (thisMonthDateTotalsMap[item.date] || 0) + amt;
+      }
+
+      // Last Month matching
+      if (yearNum === lastMonthYear && monthNum === lastMonthNum) {
+        lastMonthTotal += amt;
+        if (isFixed) {
+          lastMonthFixedTotal += amt;
+        } else {
+          lastMonthRoutineTotal += amt;
+        }
+        lastMonthDateTotalsMap[item.date] = (lastMonthDateTotalsMap[item.date] || 0) + amt;
       }
     }
   });
@@ -422,6 +449,9 @@ export default function App() {
 
   const thisMonthActiveDays = Math.max(1, Object.keys(thisMonthDateTotalsMap).length);
   const thisMonthDailyAvg = Math.round(thisMonthTotal / thisMonthActiveDays);
+
+  const lastMonthActiveDays = Math.max(1, Object.keys(lastMonthDateTotalsMap).length);
+  const lastMonthDailyAvg = Math.round(lastMonthTotal / lastMonthActiveDays);
 
   const diffYesterday = todayTotal - yesterdayTotal;
   const isHigher = diffYesterday > 0;
@@ -568,7 +598,7 @@ export default function App() {
                 ₹{thisMonthTotal.toLocaleString('en-IN')}
               </div>
               <div style={{ fontSize: '0.675rem', fontWeight: 600, color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-                Total: ₹{grandTotal.toLocaleString('en-IN')}
+                Last Month: ₹{lastMonthTotal.toLocaleString('en-IN')}
               </div>
             </div>
 
@@ -577,6 +607,9 @@ export default function App() {
               <div style={{ fontSize: '0.725rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>This Month Avg</div>
               <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#10B981', marginTop: '0.2rem' }}>
                 ₹{thisMonthDailyAvg}/day
+              </div>
+              <div style={{ fontSize: '0.675rem', fontWeight: 600, color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                Last Month: ₹{lastMonthDailyAvg}/day
               </div>
             </div>
           </div>
@@ -938,26 +971,26 @@ export default function App() {
             onSave={handleSaveBudget}
           />
 
-          {/* Analytical Overview Cards */}
+          {/* Analytical Overview Cards (This Month vs Last Month) */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
             
             <div style={{ background: '#FFFFFF', padding: '1rem', borderRadius: '16px', border: '1px solid var(--border)' }}>
               <div style={{ fontSize: '0.725rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Daily Routine Living</div>
               <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#059669', marginTop: '0.2rem' }}>
-                ₹{routineTotal.toLocaleString('en-IN')}
+                ₹{thisMonthRoutineTotal.toLocaleString('en-IN')}
               </div>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                Avg ~₹{dailyTotalAvg}/day
+              <div style={{ fontSize: '0.675rem', fontWeight: 600, color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                Last Month: ₹{lastMonthRoutineTotal.toLocaleString('en-IN')}
               </div>
             </div>
 
             <div style={{ background: '#FFFFFF', padding: '1rem', borderRadius: '16px', border: '1px solid var(--border)' }}>
               <div style={{ fontSize: '0.725rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Fixed Bills & Rent</div>
               <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#DC2626', marginTop: '0.2rem' }}>
-                ₹{fixedTotal.toLocaleString('en-IN')}
+                ₹{thisMonthFixedTotal.toLocaleString('en-IN')}
               </div>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                Rent, Gym & Equipment
+              <div style={{ fontSize: '0.675rem', fontWeight: 600, color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                Last Month: ₹{lastMonthFixedTotal.toLocaleString('en-IN')}
               </div>
             </div>
 
