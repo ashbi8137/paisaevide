@@ -50,8 +50,10 @@ export function CustomDatePicker({ value, onChange, maxDate, label = "Date" }) {
 
   // Get display text
   const getDisplayText = () => {
-    if (value === todayStr) return `Today (${todayObj.getDate()} ${MONTH_NAMES[todayObj.getMonth()].substring(0, 3)})`;
-    if (value === yesterdayStr) return `Yesterday (${yesterdayObj.getDate()} ${MONTH_NAMES[yesterdayObj.getMonth()].substring(0, 3)})`;
+    const td = new Date();
+    const yd = new Date(); yd.setDate(yd.getDate() - 1);
+    if (value === todayStr) return `Today (${td.getDate()} ${MONTH_NAMES[td.getMonth()].substring(0, 3)})`;
+    if (value === yesterdayStr) return `Yesterday (${yd.getDate()} ${MONTH_NAMES[yd.getMonth()].substring(0, 3)})`;
     const d = parseDateStr(value);
     return `${d.getDate()} ${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
   };
