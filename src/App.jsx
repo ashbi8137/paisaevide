@@ -57,12 +57,13 @@ import { CustomDatePicker } from './components/CustomDatePicker';
 import { Check, Wallet, Trash2 as TrashIcon, Settings, ChevronDown, ChevronUp, Search } from 'lucide-react';
 
 // Inline Edit Form - renders directly below a transaction row
-function InlineEditForm({ expense, categories, todayStr, onSave, onCancel }) {
+function InlineEditForm({ expense, categories, todayStr, onSave, onCancel, onDelete }) {
   const [title, setTitle] = React.useState(expense.title || '');
   const [amount, setAmount] = React.useState(expense.amount || '');
   const [category, setCategory] = React.useState(expense.category || 'Food & Dining');
   const [date, setDate] = React.useState(expense.date || todayStr);
   const [error, setError] = React.useState('');
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -73,6 +74,42 @@ function InlineEditForm({ expense, categories, todayStr, onSave, onCancel }) {
     if (date > todayStr) { setError('Future dates not allowed'); return; }
     onSave({ ...expense, title: trimmedTitle, amount: numAmount, category, date });
   };
+
+  if (confirmDelete) {
+    return (
+      <div style={{
+        background: '#FEF2F2',
+        border: '1px solid #FCA5A5',
+        borderRadius: '14px',
+        padding: '0.75rem 1rem',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '0.75rem',
+        flexWrap: 'wrap'
+      }}>
+        <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#DC2626' }}>
+          🗑️ Delete <strong>"{expense.title}"</strong> (₹{Number(expense.amount).toLocaleString('en-IN')})?
+        </span>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button
+            type="button"
+            onClick={() => setConfirmDelete(false)}
+            style={{ padding: '0.4rem 0.9rem', borderRadius: '10px', background: '#F1F5F9', border: '1px solid #E2E8F0', color: '#475569', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}
+          >
+            No
+          </button>
+          <button
+            type="button"
+            onClick={() => onDelete(expense.id)}
+            style={{ padding: '0.4rem 0.9rem', borderRadius: '10px', background: '#EF4444', border: 'none', color: '#FFF', fontSize: '0.8rem', fontWeight: 800, cursor: 'pointer' }}
+          >
+            Yes, Delete
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
@@ -107,6 +144,10 @@ function InlineEditForm({ expense, categories, todayStr, onSave, onCancel }) {
       </div>
 
       <div style={{ display: 'flex', gap: '0.5rem' }}>
+        <button type="button" onClick={() => setConfirmDelete(true)}
+          style={{ flex: 1, padding: '0.55rem', borderRadius: '12px', background: '#FEF2F2', border: '1px solid #FCA5A5', color: '#EF4444', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem' }}>
+          <TrashIcon size={13} /> Delete
+        </button>
         <button type="button" onClick={onCancel}
           style={{ flex: 1, padding: '0.55rem', borderRadius: '12px', background: '#F1F5F9', border: '1px solid #E2E8F0', color: '#475569', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}>
           Cancel
@@ -285,6 +326,13 @@ export default function App() {
 
   const handleSaveEditedExpense = async (updatedItem) => {
     await updateExpense(updatedItem);
+    const fresh = await fetchExpenses();
+    setExpenses(fresh);
+  };
+
+  const handleDeleteExpense = async (id) => {
+    await deleteExpense(id);
+    setEditingExpense(null);
     const fresh = await fetchExpenses();
     setExpenses(fresh);
   };
@@ -623,7 +671,7 @@ export default function App() {
           </div>
 
           {/* Summary Strip */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', margin: '0 0.5rem 0.85rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem', margin: '0 0 0.85rem' }}>
             {/* Card 1: THIS MONTH */}
             <div style={{ background: '#FFFFFF', padding: '0.85rem 1rem', borderRadius: '16px', border: '1px solid var(--border)' }}>
               <div style={{ fontSize: '0.725rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>This Month</div>
@@ -648,7 +696,7 @@ export default function App() {
           </div>
 
           {/* Customizable 1-Tap Quick Log Grid */}
-          <div style={{ margin: '0 0.5rem 0.85rem' }}>
+          <div style={{ margin: '0 0 0.85rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.65rem' }}>
               <span style={{ fontSize: '0.775rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 1-Tap Quick Log
@@ -726,7 +774,7 @@ export default function App() {
           </div>
 
           {/* Real-time Expense Search Bar */}
-          <div style={{ margin: '0 0.5rem 0.85rem' }}>
+          <div style={{ margin: '0 0 0.85rem' }}>
             <div style={{
               display: 'flex',
               alignItems: 'center',
@@ -787,7 +835,7 @@ export default function App() {
           </div>
 
           {/* Daily Transactions */}
-          <div style={{ margin: '0 0.5rem' }}>
+          <div style={{ margin: '0' }}>
 
             {expenses.length === 0 ? (
               <div style={{ background: '#FFFFFF', border: '1px solid var(--border)', borderRadius: '20px', padding: '1.75rem 1rem', textAlign: 'center' }}>
@@ -890,6 +938,7 @@ export default function App() {
                                   setEditingExpense(null);
                                 }}
                                 onCancel={() => setEditingExpense(null)}
+                                onDelete={handleDeleteExpense}
                               />
                             </div>
                           )}
@@ -908,7 +957,7 @@ export default function App() {
 
       {/* TAB 2: ADD ENTRY */}
       {activeTab === 'add' && (
-        <div style={{ padding: '0 0.5rem' }}>
+        <div>
           <h2 style={{ fontSize: '1.35rem', fontWeight: 800, margin: '1rem 0 1.25rem' }}>Add New Expense</h2>
 
           <form onSubmit={handleAddSubmit} className="clean-card" style={{ margin: 0 }}>
@@ -1005,7 +1054,7 @@ export default function App() {
 
       {/* TAB 3: STATS & REPORTS */}
       {activeTab === 'stats' && (
-        <div style={{ padding: '0 0.5rem' }}>
+        <div>
           
     {/* Page Title */}
     <div style={{ margin: '1rem 0 0.85rem' }}>
