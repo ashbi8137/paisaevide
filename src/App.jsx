@@ -1059,35 +1059,72 @@ export default function App() {
       </h2>
     </div>
 
-    {/* Top Quick Actions Bar (Full-Width Monthly Budget) */}
-    <div style={{ marginBottom: '1rem' }}>
+    {/* Top 2-Button Row: Monthly Budget + Custom Filter */}
+    <div style={{ display: 'flex', gap: '0.65rem', marginBottom: '1rem' }}>
+
+      {/* Monthly Budget Button */}
       <button
         type="button"
         onClick={() => setIsBudgetModalOpen(!isBudgetModalOpen)}
-        style={{ 
-          width: '100%',
-          background: isBudgetModalOpen ? '#10B981' : '#FFFFFF', 
-          border: `1px solid ${isBudgetModalOpen ? '#10B981' : 'var(--border)'}`, 
-          color: isBudgetModalOpen ? '#FFFFFF' : 'var(--text-primary)', 
-          padding: '0.75rem 1rem', 
-          borderRadius: '16px', 
-          fontSize: '0.9rem', 
-          fontWeight: 800, 
-          cursor: 'pointer', 
-          display: 'flex', 
-          alignItems: 'center', 
+        style={{
+          flex: 1,
+          background: isBudgetModalOpen ? '#10B981' : '#FFFFFF',
+          border: `1px solid ${isBudgetModalOpen ? '#10B981' : 'var(--border)'}`,
+          color: isBudgetModalOpen ? '#FFFFFF' : 'var(--text-primary)',
+          padding: '0.7rem 0.85rem',
+          borderRadius: '16px',
+          fontSize: '0.825rem',
+          fontWeight: 800,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
           justifyContent: 'center',
-          gap: '0.5rem',
-          boxShadow: isBudgetModalOpen ? '0 4px 12px rgba(16, 185, 129, 0.25)' : '0 2px 6px rgba(0,0,0,0.02)',
+          gap: '0.4rem',
+          boxShadow: isBudgetModalOpen ? '0 4px 12px rgba(16, 185, 129, 0.25)' : '0 1px 4px rgba(0,0,0,0.04)',
           transition: 'all 0.15s ease'
         }}
       >
-        <Wallet size={18} color={isBudgetModalOpen ? '#FFFFFF' : '#10B981'} />
-        <span>{isBudgetModalOpen ? 'Close Monthly Budget' : 'Manage Monthly Budget'}</span>
+        <Wallet size={16} color={isBudgetModalOpen ? '#FFFFFF' : '#10B981'} />
+        <span>{isBudgetModalOpen ? 'Close Budget' : 'Monthly Budget'}</span>
       </button>
+
+      {/* Custom Filter Button */}
+      <button
+        type="button"
+        onClick={() => setIsFilterModalOpen(true)}
+        style={{
+          flex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '0.4rem',
+          padding: '0.7rem 0.85rem',
+          borderRadius: '16px',
+          background: ['DATE_RANGE', 'MONTH_RANGE'].includes(dateFilter.mode) ? '#10B981' : '#FFFFFF',
+          color: ['DATE_RANGE', 'MONTH_RANGE'].includes(dateFilter.mode) ? '#FFFFFF' : 'var(--text-primary)',
+          border: ['DATE_RANGE', 'MONTH_RANGE'].includes(dateFilter.mode) ? 'none' : '1px solid var(--border)',
+          fontWeight: 800,
+          fontSize: '0.825rem',
+          cursor: 'pointer',
+          boxShadow: ['DATE_RANGE', 'MONTH_RANGE'].includes(dateFilter.mode) ? '0 4px 12px rgba(16, 185, 129, 0.25)' : '0 1px 4px rgba(0,0,0,0.04)',
+          transition: 'all 0.15s ease'
+        }}
+      >
+        <SlidersHorizontal size={15} />
+        <span>{['DATE_RANGE', 'MONTH_RANGE'].includes(dateFilter.mode) ? dateFilter.label : 'Custom Filter'}</span>
+        {['DATE_RANGE', 'MONTH_RANGE'].includes(dateFilter.mode) && (
+          <span
+            onClick={(e) => { e.stopPropagation(); setDateFilter({ mode: 'PRESET', preset: 'ALL', label: 'All Time' }); }}
+            style={{ marginLeft: '0.15rem', display: 'flex', alignItems: 'center', opacity: 0.85 }}
+          >
+            <X size={13} />
+          </span>
+        )}
+      </button>
+
     </div>
 
-          {/* Inline Budget Allocation Panel - Expands right below the button */}
+          {/* Inline Budget Allocation Panel */}
           <BudgetModal
             isOpen={isBudgetModalOpen}
             onClose={() => setIsBudgetModalOpen(false)}
@@ -1096,64 +1133,6 @@ export default function App() {
             currentBudget={monthlyBudget}
             onSave={handleSaveBudget}
           />
-
-          {/* 4 Action Buttons: Total, Today, Yesterday, Filter */}
-          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', alignItems: 'center' }}>
-            {[
-              { key: 'ALL', label: 'Total', check: () => dateFilter.preset === 'ALL' && dateFilter.mode === 'PRESET', action: () => setDateFilter({ mode: 'PRESET', preset: 'ALL', label: 'All Time' }) },
-              { key: 'TODAY', label: 'Today', check: () => dateFilter.preset === 'TODAY' && dateFilter.mode === 'PRESET', action: () => setDateFilter({ mode: 'PRESET', preset: 'TODAY', label: 'Today' }) },
-              { key: 'YESTERDAY', label: 'Yesterday', check: () => dateFilter.preset === 'YESTERDAY' && dateFilter.mode === 'PRESET', action: () => setDateFilter({ mode: 'PRESET', preset: 'YESTERDAY', label: 'Yesterday' }) },
-            ].map(btn => {
-              const isActive = btn.check();
-              return (
-                <button key={btn.key} type="button" onClick={btn.action}
-                  style={{
-                    flex: 1, padding: '0.5rem 0.75rem', borderRadius: '14px',
-                    background: isActive ? '#10B981' : '#FFFFFF',
-                    color: isActive ? '#FFFFFF' : 'var(--text-primary)',
-                    border: isActive ? 'none' : '1px solid var(--border)',
-                    fontWeight: 800, fontSize: '0.825rem', cursor: 'pointer', textAlign: 'center'
-                  }}
-                >
-                  {btn.label}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Custom Date Filter - right below preset buttons */}
-          <div style={{ marginBottom: '1rem' }}>
-            <button
-              type="button"
-              onClick={() => setIsFilterModalOpen(true)}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.4rem',
-                padding: '0.55rem 1rem',
-                borderRadius: '14px',
-                background: ['DATE_RANGE', 'MONTH_RANGE'].includes(dateFilter.mode) ? '#10B981' : '#FFFFFF',
-                color: ['DATE_RANGE', 'MONTH_RANGE'].includes(dateFilter.mode) ? '#FFFFFF' : 'var(--text-primary)',
-                border: ['DATE_RANGE', 'MONTH_RANGE'].includes(dateFilter.mode) ? 'none' : '1px solid var(--border)',
-                fontWeight: 800,
-                fontSize: '0.825rem',
-                cursor: 'pointer'
-              }}
-            >
-              <SlidersHorizontal size={15} />
-              <span>{['DATE_RANGE', 'MONTH_RANGE'].includes(dateFilter.mode) ? `Filter: ${dateFilter.label}` : 'Custom Date Filter'}</span>
-              {['DATE_RANGE', 'MONTH_RANGE'].includes(dateFilter.mode) && (
-                <span
-                  onClick={(e) => { e.stopPropagation(); setDateFilter({ mode: 'PRESET', preset: 'ALL', label: 'All Time' }); }}
-                  style={{ marginLeft: '0.3rem', display: 'flex', alignItems: 'center' }}
-                >
-                  <X size={14} />
-                </span>
-              )}
-            </button>
-          </div>
 
           {/* Category Distribution Breakdown */}
           {(() => {

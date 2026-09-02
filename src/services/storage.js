@@ -283,12 +283,13 @@ const DEFAULT_QUICK_LOGS = [
 
 export function getStoredQuickLogs() {
   const saved = localStorage.getItem(STORAGE_KEYS.QUICK_LOGS);
-  if (saved) {
+  if (saved !== null) {
     try {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed)) return parsed;
     } catch (e) {}
   }
+  // Only fall back to defaults if nothing has ever been saved
   return DEFAULT_QUICK_LOGS;
 }
 
