@@ -944,30 +944,6 @@ export default function App() {
                     </div>
                   ))}
                 </div>
-
-                {/* Clear All Old History Button */}
-                <div style={{ textAlign: 'center', marginTop: '1.5rem', marginBottom: '1rem' }}>
-                  <button
-                    type="button"
-                    onClick={handleClearHistory}
-                    style={{
-                      background: '#FEF2F2',
-                      border: '1px solid #FCA5A5',
-                      color: '#DC2626',
-                      padding: '0.6rem 1.25rem',
-                      borderRadius: '12px',
-                      fontSize: '0.78rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.4rem'
-                    }}
-                  >
-                    <TrashIcon size={14} />
-                    <span>Clear All Old Data (Start Fresh)</span>
-                  </button>
-                </div>
               </div>
             )}
           </div>
