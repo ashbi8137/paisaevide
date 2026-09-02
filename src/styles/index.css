@@ -39,12 +39,21 @@ body {
   align-items: flex-start;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+#root {
+  width: 100%;
+  display: flex;
+  justify-content: center;
 }
 
 /* Shell */
 .app-shell {
   width: 100%;
-  max-width: 540px;
+  max-width: 600px;
   min-height: 100vh;
   background: var(--bg-page);
   display: flex;
@@ -53,7 +62,7 @@ body {
   padding-bottom: 110px;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 650px) {
   .app-shell {
     max-width: 100% !important;
     width: 100% !important;
