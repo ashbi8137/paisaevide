@@ -212,8 +212,8 @@ export default function App() {
     }
     loadData();
 
-    // Auto-carry-forward budget from last month
-    const budget = autoCarryForwardBudget(currentMonth) || getBudget(currentMonth);
+    // Load budget specifically for current month
+    const budget = getBudget(currentMonth);
     setMonthlyBudget(budget);
 
     // Load Quick Logs
@@ -233,9 +233,9 @@ export default function App() {
     setQuickLogs(updated);
   };
 
-  const handleSaveBudget = (data) => {
-    const saved = saveBudget(currentMonth, data.salary, data.allocations);
-    setMonthlyBudget(saved);
+  const handleSaveBudget = ({ month, budget }) => {
+    // Refresh monthly budget state
+    setMonthlyBudget(getBudget(currentMonth));
   };
 
   const loadData = async () => {
@@ -1128,9 +1128,8 @@ export default function App() {
           <BudgetModal
             isOpen={isBudgetModalOpen}
             onClose={() => setIsBudgetModalOpen(false)}
-            month={currentMonth}
+            initialMonth={currentMonth}
             categories={categories}
-            currentBudget={monthlyBudget}
             onSave={handleSaveBudget}
           />
 
@@ -1146,14 +1145,23 @@ export default function App() {
               catTotals[i.category] = (catTotals[i.category] || 0) + a;
             });
 
-            // Current month per-category totals for monthly budget allocation cross-checking
-            const currentMonthCatTotals = {};
+            // Determine active target month for budget evaluation
+            let activeBudgetMonth = currentMonth;
+            if (dateFilter.mode === 'DATE_RANGE' && dateFilter.fromDate) {
+              activeBudgetMonth = dateFilter.fromDate.substring(0, 7);
+            } else if (dateFilter.mode === 'MONTH_RANGE' && dateFilter.fromMonth) {
+              activeBudgetMonth = dateFilter.fromMonth;
+            }
+
+            const activeBudget = getBudget(activeBudgetMonth);
+
+            // Calculate category spent specifically for this active budget month
+            const activeMonthCatTotals = {};
             (expenses || []).forEach(i => {
               if (!i || !i.date || typeof i.date !== 'string') return;
-              const parts = i.date.split('-').map(Number);
-              if (parts[0] === cYear && parts[1] === cMonth) {
+              if (i.date.startsWith(activeBudgetMonth)) {
                 const a = Number(i.amount) || 0;
-                currentMonthCatTotals[i.category] = (currentMonthCatTotals[i.category] || 0) + a;
+                activeMonthCatTotals[i.category] = (activeMonthCatTotals[i.category] || 0) + a;
               }
             });
 
@@ -1198,13 +1206,14 @@ export default function App() {
                 )}
 
                 {sorted.map((c, i) => {
-                  const allocated = monthlyBudget?.allocations?.[c.name] || 0;
+                  const allocated = activeBudget?.allocations?.[c.name] || 0;
+                  const hasBudget = allocated > 0;
                   
-                  // Evaluate monthly budget against current month's spent when viewing Total/Preset
-                  const budgetSpent = (dateFilter.mode === 'PRESET' && dateFilter.preset === 'ALL') ? (currentMonthCatTotals[c.name] || 0) : c.tot;
+                  // Category spent in this active month vs allocation
+                  const budgetSpent = activeMonthCatTotals[c.name] || 0;
                   const remaining = allocated - budgetSpent;
-                  const barPct = allocated > 0 ? Math.min(100, Math.round((budgetSpent / allocated) * 100)) : c.pct;
-                  const isOver = allocated > 0 && budgetSpent > allocated;
+                  const barPct = hasBudget ? Math.min(100, Math.round((budgetSpent / allocated) * 100)) : c.pct;
+                  const isOver = hasBudget && budgetSpent > allocated;
                   const barColor = isOver ? '#EF4444' : '#10B981';
                   const isExpanded = expandedCategory === c.name;
 
@@ -1227,8 +1236,8 @@ export default function App() {
                           <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{c.name}</span>
                           {isExpanded ? <ChevronUp size={16} color="#10B981" /> : <ChevronDown size={16} color="#94A3B8" />}
                         </div>
-                        <span style={{ fontWeight: 800, color: barColor }}>
-                          {allocated > 0 ? `₹${budgetSpent.toLocaleString('en-IN')} / ₹${allocated.toLocaleString('en-IN')}` : `₹${c.tot.toLocaleString('en-IN')} (${c.pct}%)`}
+                        <span style={{ fontWeight: 800, color: hasBudget ? barColor : 'var(--text-primary)' }}>
+                          {hasBudget ? `₹${budgetSpent.toLocaleString('en-IN')} / ₹${allocated.toLocaleString('en-IN')}` : `₹${c.tot.toLocaleString('en-IN')} (${c.pct}%)`}
                         </span>
                       </div>
 
@@ -1236,7 +1245,7 @@ export default function App() {
                         <div style={{ width: `${barPct}%`, height: '100%', background: barColor, borderRadius: '4px', transition: 'width 0.3s ease' }} />
                       </div>
 
-                      {allocated > 0 && (
+                      {hasBudget && (
                         <div style={{ fontSize: '0.725rem', fontWeight: 700, marginTop: '0.3rem', color: isOver ? '#EF4444' : '#059669' }}>
                           {isOver ? `⚠️ Over by ₹${Math.abs(remaining).toLocaleString('en-IN')}` : `₹${remaining.toLocaleString('en-IN')} remaining`}
                         </div>

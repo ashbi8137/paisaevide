@@ -1,48 +1,58 @@
 import React, { useState, useEffect } from 'react';
-import { X, Check, Wallet } from 'lucide-react';
+import { X, Check, Wallet, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
+import { getBudget, saveBudget } from '../services/storage';
+import { localMonthStr } from '../utils/parser';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'
 ];
 
-export function BudgetModal({ isOpen, onClose, month, categories = [], currentBudget, onSave }) {
+export function BudgetModal({ isOpen, onClose, initialMonth, categories = [], onSave }) {
+  const activeCurrentMonth = localMonthStr(); // e.g. '2026-09'
+  const [selectedMonth, setSelectedMonth] = useState(initialMonth || activeCurrentMonth);
   const [salary, setSalary] = useState('');
   const [allocations, setAllocations] = useState({});
+  const [savedFeedback, setSavedFeedback] = useState(false);
 
+  // Load budget for the selected month whenever modal opens or selectedMonth changes
   useEffect(() => {
-    if (isOpen && currentBudget) {
-      setSalary(
-        currentBudget.salary !== undefined && currentBudget.salary !== null
-          ? String(currentBudget.salary)
-          : ''
-      );
-      setAllocations(currentBudget.allocations ? { ...currentBudget.allocations } : {});
-    } else if (!currentBudget) {
-      setSalary('');
-      setAllocations({});
+    if (isOpen) {
+      const targetMonth = selectedMonth || activeCurrentMonth;
+      const b = getBudget(targetMonth);
+      if (b) {
+        setSalary(b.salary !== undefined && b.salary !== null ? String(b.salary) : '');
+        setAllocations(b.allocations ? { ...b.allocations } : {});
+      } else {
+        setSalary('');
+        setAllocations({});
+      }
+      setSavedFeedback(false);
     }
-  }, [isOpen, currentBudget, month]);
+  }, [isOpen, selectedMonth, activeCurrentMonth]);
 
   if (!isOpen) return null;
 
-  // Format Month & Year for Header
-  const getMonthAndYear = (m) => {
-    if (!m) {
-      const now = new Date();
-      return { monthName: MONTH_NAMES[now.getMonth()], year: now.getFullYear() };
-    }
-    const parts = m.split('-');
-    const year = parts[0] || new Date().getFullYear();
+  // Month navigation helper
+  const changeMonth = (delta) => {
+    const parts = (selectedMonth || activeCurrentMonth).split('-').map(Number);
+    const d = new Date(parts[0], parts[1] - 1 + delta, 1);
+    const nextY = d.getFullYear();
+    const nextM = String(d.getMonth() + 1).padStart(2, '0');
+    setSelectedMonth(`${nextY}-${nextM}`);
+  };
+
+  // Format Month & Year for Display
+  const getMonthDisplay = (m) => {
+    const parts = (m || activeCurrentMonth).split('-');
+    const year = parts[0];
     const monthNum = parseInt(parts[1], 10);
-    const monthName =
-      !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12
-        ? MONTH_NAMES[monthNum - 1]
-        : parts[1] || '';
+    const monthName = !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12 ? MONTH_NAMES[monthNum - 1] : '';
     return { monthName, year };
   };
 
-  const { monthName, year } = getMonthAndYear(month);
+  const { monthName, year } = getMonthDisplay(selectedMonth);
+  const isThisMonth = selectedMonth === activeCurrentMonth;
 
   const handleAllocationChange = (categoryName, value) => {
     setAllocations((prev) => ({
@@ -72,15 +82,32 @@ export function BudgetModal({ isOpen, onClose, month, categories = [], currentBu
       }
     });
 
+    const saved = saveBudget(selectedMonth, numSalary, cleanedAllocations);
+
     if (onSave) {
       onSave({
-        salary: numSalary,
-        allocations: cleanedAllocations
+        month: selectedMonth,
+        budget: saved
       });
     }
 
-    if (onClose) {
-      onClose();
+    setSavedFeedback(true);
+    setTimeout(() => {
+      if (onClose) onClose();
+    }, 400);
+  };
+
+  const handleClearThisMonth = () => {
+    if (window.confirm(`Clear budget for ${monthName} ${year}?`)) {
+      saveBudget(selectedMonth, 0, {});
+      setSalary('');
+      setAllocations({});
+      if (onSave) {
+        onSave({
+          month: selectedMonth,
+          budget: null
+        });
+      }
     }
   };
 
@@ -98,13 +125,15 @@ export function BudgetModal({ isOpen, onClose, month, categories = [], currentBu
         width: '100%'
       }}
     >
-      {/* Header */}
+      {/* Header with Month Stepper */}
       <div
         style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: '1rem'
+          marginBottom: '1rem',
+          paddingBottom: '0.75rem',
+          borderBottom: '1px solid #F1F5F9'
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
@@ -122,10 +151,16 @@ export function BudgetModal({ isOpen, onClose, month, categories = [], currentBu
           >
             <Wallet size={16} />
           </div>
-          <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary, #0F172A)' }}>
-            {monthName} {year} Budget
-          </h3>
+          <div>
+            <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary, #0F172A)', margin: 0 }}>
+              Monthly Budget
+            </h3>
+            <span style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 600 }}>
+              Set customized plan per month
+            </span>
+          </div>
         </div>
+
         <button
           type="button"
           onClick={onClose}
@@ -146,6 +181,75 @@ export function BudgetModal({ isOpen, onClose, month, categories = [], currentBu
         </button>
       </div>
 
+      {/* Interactive Month Picker Stepper */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          background: '#F8FAF9',
+          border: '1px solid #E2E8F0',
+          borderRadius: '14px',
+          padding: '0.4rem 0.6rem',
+          marginBottom: '1rem'
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => changeMonth(-1)}
+          style={{
+            background: '#FFFFFF',
+            border: '1px solid #E2E8F0',
+            borderRadius: '10px',
+            width: '32px',
+            height: '32px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            color: '#475569'
+          }}
+          title="Previous Month"
+        >
+          <ChevronLeft size={16} />
+        </button>
+
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0F172A' }}>
+            {monthName} {year}
+          </div>
+          {isThisMonth ? (
+            <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#059669', background: '#ECFDF5', padding: '0.1rem 0.45rem', borderRadius: '6px' }}>
+              Current Month
+            </span>
+          ) : (
+            <span style={{ fontSize: '0.65rem', fontWeight: 600, color: '#94A3B8' }}>
+              Specific Month Budget
+            </span>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => changeMonth(1)}
+          style={{
+            background: '#FFFFFF',
+            border: '1px solid #E2E8F0',
+            borderRadius: '10px',
+            width: '32px',
+            height: '32px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            color: '#475569'
+          }}
+          title="Next Month"
+        >
+          <ChevronRight size={16} />
+        </button>
+      </div>
+
       <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
         {/* Salary Input */}
         <div>
@@ -160,7 +264,7 @@ export function BudgetModal({ isOpen, onClose, month, categories = [], currentBu
               display: 'block'
             }}
           >
-            Total Monthly Expense Budget (₹)
+            {monthName} Target Cash / Budget (₹)
           </label>
           <input
             type="number"
@@ -197,7 +301,7 @@ export function BudgetModal({ isOpen, onClose, month, categories = [], currentBu
               display: 'block'
             }}
           >
-            Category Allocations
+            Category Allocations for {monthName}
           </label>
 
           <div
@@ -282,52 +386,61 @@ export function BudgetModal({ isOpen, onClose, month, categories = [], currentBu
         </div>
 
         {/* Live Unallocated Counter */}
-        <div
-          style={{
-            display: 'flex',
-            justify: 'space-between',
-            alignItems: 'center',
-            padding: '0.6rem 0.85rem',
-            borderRadius: '12px',
-            background: isPositive ? '#ECFDF5' : '#FEF2F2',
-            border: `1px solid ${isPositive ? '#A7F3D0' : '#FCA5A5'}`,
-            color: isPositive ? '#047857' : '#DC2626'
-          }}
-        >
-          <span style={{ fontSize: '0.8rem', fontWeight: 700 }}>Unallocated Balance:</span>
-          <span style={{ fontSize: '0.95rem', fontWeight: 800 }}>
-            {unallocated < 0
-              ? `-₹${Math.abs(unallocated).toLocaleString('en-IN')}`
-              : `₹${unallocated.toLocaleString('en-IN')}`}
-          </span>
-        </div>
+        {numSalary > 0 && (
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '0.6rem 0.85rem',
+              borderRadius: '12px',
+              background: isPositive ? '#ECFDF5' : '#FEF2F2',
+              border: `1px solid ${isPositive ? '#A7F3D0' : '#FCA5A5'}`,
+              color: isPositive ? '#047857' : '#DC2626'
+            }}
+          >
+            <span style={{ fontSize: '0.8rem', fontWeight: 700 }}>Unallocated Balance:</span>
+            <span style={{ fontSize: '0.95rem', fontWeight: 800 }}>
+              {unallocated < 0
+                ? `-₹${Math.abs(unallocated).toLocaleString('en-IN')}`
+                : `₹${unallocated.toLocaleString('en-IN')}`}
+            </span>
+          </div>
+        )}
 
-        {/* Save & Cancel Buttons */}
+        {/* Action Buttons */}
         <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.2rem' }}>
+          {(numSalary > 0 || Object.keys(allocations).length > 0) && (
+            <button
+              type="button"
+              onClick={handleClearThisMonth}
+              style={{
+                padding: '0.65rem 0.85rem',
+                borderRadius: '12px',
+                background: '#FEF2F2',
+                border: '1px solid #FCA5A5',
+                color: '#DC2626',
+                fontSize: '0.8rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.25rem'
+              }}
+              title="Reset budget for this month"
+            >
+              <RotateCcw size={13} />
+              <span>Reset</span>
+            </button>
+          )}
+
           <button
-            type="button"
-            onClick={onClose}
+            type="submit"
             style={{
               flex: 1,
               padding: '0.65rem',
               borderRadius: '12px',
-              background: '#F1F5F9',
-              border: '1px solid #E2E8F0',
-              color: '#475569',
-              fontSize: '0.825rem',
-              fontWeight: 700,
-              cursor: 'pointer'
-            }}
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            style={{
-              flex: 1.5,
-              padding: '0.65rem',
-              borderRadius: '12px',
-              background: '#10B981',
+              background: savedFeedback ? '#059669' : '#10B981',
               border: 'none',
               color: '#FFFFFF',
               fontSize: '0.85rem',
@@ -337,11 +450,12 @@ export function BudgetModal({ isOpen, onClose, month, categories = [], currentBu
               alignItems: 'center',
               justifyContent: 'center',
               gap: '0.35rem',
-              boxShadow: '0 3px 10px rgba(16, 185, 129, 0.25)'
+              boxShadow: '0 3px 10px rgba(16, 185, 129, 0.25)',
+              transition: 'all 0.15s ease'
             }}
           >
             <Check size={16} />
-            <span>Save Budget</span>
+            <span>{savedFeedback ? 'Saved!' : `Save ${monthName} Budget`}</span>
           </button>
         </div>
       </form>
