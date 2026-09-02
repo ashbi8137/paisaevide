@@ -853,95 +853,121 @@ export default function App() {
                 </p>
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                {searchedGroupedExpenses.map(group => (
-                  <div key={group.dateKey}>
-                    
-                    {/* Date Divider Header */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.4rem 0.25rem', marginBottom: '0.4rem', borderBottom: '1px dashed #CBD5E1' }}>
-                      <span style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                        {formatDateGroupHeader(group.dateKey)}
-                      </span>
-                      <span style={{ fontSize: '0.775rem', fontWeight: 800, color: '#059669', background: '#ECFDF5', border: '1px solid #A7F3D0', padding: '0.15rem 0.6rem', borderRadius: '10px' }}>
-                        ₹{group.dayTotal.toLocaleString('en-IN')}
-                      </span>
-                    </div>
+              <div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                  {searchedGroupedExpenses.map(group => (
+                    <div key={group.dateKey}>
+                      
+                      {/* Date Divider Header */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.4rem 0.25rem', marginBottom: '0.4rem', borderBottom: '1px dashed #CBD5E1' }}>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                          {formatDateGroupHeader(group.dateKey)}
+                        </span>
+                        <span style={{ fontSize: '0.775rem', fontWeight: 800, color: '#059669', background: '#ECFDF5', border: '1px solid #A7F3D0', padding: '0.15rem 0.6rem', borderRadius: '10px' }}>
+                          ₹{group.dayTotal.toLocaleString('en-IN')}
+                        </span>
+                      </div>
 
-                    {/* Transaction Rows within this date */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-                      {group.items.map(item => (
-                        <React.Fragment key={item.id}>
-                          <div className="item-row">
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                              <div className="item-icon" style={{ background: getCategoryBg(item.category) }}>
-                                {getCategoryIcon(item.category)}
-                              </div>
-                              <div>
-                                <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>{item.title}</div>
-                                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>
-                                  {item.category}
+                      {/* Transaction Rows within this date */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                        {group.items.map(item => (
+                          <React.Fragment key={item.id}>
+                            <div className="item-row">
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                <div className="item-icon" style={{ background: getCategoryBg(item.category) }}>
+                                  {getCategoryIcon(item.category)}
+                                </div>
+                                <div>
+                                  <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>{item.title}</div>
+                                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>
+                                    {item.category}
+                                  </div>
                                 </div>
                               </div>
+
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                                <span style={{ fontWeight: 800, fontSize: '1rem', color: 'var(--text-primary)' }}>
+                                  ₹{item.amount.toLocaleString('en-IN')}
+                                </span>
+
+                                {/* Edit Expense Button */}
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingExpense(editingExpense?.id === item.id ? null : item)}
+                                  style={{
+                                    background: editingExpense?.id === item.id ? '#ECFDF5' : '#F1F5F9',
+                                    border: `1px solid ${editingExpense?.id === item.id ? '#A7F3D0' : '#E2E8F0'}`,
+                                    width: '32px',
+                                    height: '32px',
+                                    borderRadius: '10px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer',
+                                    color: editingExpense?.id === item.id ? '#10B981' : '#475569',
+                                    transition: 'all 0.15s ease'
+                                  }}
+                                  title="Edit Expense"
+                                >
+                                  {editingExpense?.id === item.id ? <X size={15} /> : <Edit3 size={15} />}
+                                </button>
+                              </div>
                             </div>
 
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                              <span style={{ fontWeight: 800, fontSize: '1rem', color: 'var(--text-primary)' }}>
-                                ₹{item.amount.toLocaleString('en-IN')}
-                              </span>
+                            {/* Inline Edit Form - appears directly below this item */}
+                            {editingExpense?.id === item.id && (
+                              <div style={{
+                                background: '#FAFBFC',
+                                border: '1px solid #E2E8F0',
+                                borderRadius: '16px',
+                                padding: '0.85rem',
+                                marginTop: '-0.2rem',
+                                animation: 'fadeIn 0.2s ease'
+                              }}>
+                                <InlineEditForm
+                                  expense={item}
+                                  categories={categories}
+                                  todayStr={todayStr}
+                                  onSave={(updated) => {
+                                    handleSaveEditedExpense(updated);
+                                    setEditingExpense(null);
+                                  }}
+                                  onCancel={() => setEditingExpense(null)}
+                                  onDelete={handleDeleteExpense}
+                                />
+                              </div>
+                            )}
+                          </React.Fragment>
+                        ))}
+                      </div>
 
-                              {/* Edit Expense Button */}
-                              <button
-                                type="button"
-                                onClick={() => setEditingExpense(editingExpense?.id === item.id ? null : item)}
-                                style={{
-                                  background: editingExpense?.id === item.id ? '#ECFDF5' : '#F1F5F9',
-                                  border: `1px solid ${editingExpense?.id === item.id ? '#A7F3D0' : '#E2E8F0'}`,
-                                  width: '32px',
-                                  height: '32px',
-                                  borderRadius: '10px',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  cursor: 'pointer',
-                                  color: editingExpense?.id === item.id ? '#10B981' : '#475569',
-                                  transition: 'all 0.15s ease'
-                                }}
-                                title="Edit Expense"
-                              >
-                                {editingExpense?.id === item.id ? <X size={15} /> : <Edit3 size={15} />}
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* Inline Edit Form - appears directly below this item */}
-                          {editingExpense?.id === item.id && (
-                            <div style={{
-                              background: '#FAFBFC',
-                              border: '1px solid #E2E8F0',
-                              borderRadius: '16px',
-                              padding: '0.85rem',
-                              marginTop: '-0.2rem',
-                              animation: 'fadeIn 0.2s ease'
-                            }}>
-                              <InlineEditForm
-                                expense={item}
-                                categories={categories}
-                                todayStr={todayStr}
-                                onSave={(updated) => {
-                                  handleSaveEditedExpense(updated);
-                                  setEditingExpense(null);
-                                }}
-                                onCancel={() => setEditingExpense(null)}
-                                onDelete={handleDeleteExpense}
-                              />
-                            </div>
-                          )}
-                        </React.Fragment>
-                      ))}
                     </div>
+                  ))}
+                </div>
 
-                  </div>
-                ))}
+                {/* Clear All Old History Button */}
+                <div style={{ textAlign: 'center', marginTop: '1.5rem', marginBottom: '1rem' }}>
+                  <button
+                    type="button"
+                    onClick={handleClearHistory}
+                    style={{
+                      background: '#FEF2F2',
+                      border: '1px solid #FCA5A5',
+                      color: '#DC2626',
+                      padding: '0.6rem 1.25rem',
+                      borderRadius: '12px',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.4rem'
+                    }}
+                  >
+                    <TrashIcon size={14} />
+                    <span>Clear All Old Data (Start Fresh)</span>
+                  </button>
+                </div>
               </div>
             )}
           </div>

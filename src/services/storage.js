@@ -201,11 +201,9 @@ export async function clearAllExpenses() {
   const client = getSupabaseClient();
   if (client) {
     try {
-      await client.from('expenses').delete().gte('amount', 0);
+      await client.from('expenses').delete().neq('id', 'keep_nothing');
     } catch (e) {
-      try {
-        await client.from('expenses').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-      } catch (e2) {}
+      console.error("Supabase clear error:", e);
     }
   }
 }
