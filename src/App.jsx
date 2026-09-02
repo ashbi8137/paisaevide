@@ -54,7 +54,7 @@ import { DateFilterModal } from './components/DateFilterModal';
 import { BudgetModal } from './components/BudgetModal';
 import { CustomCategorySelect } from './components/CustomCategorySelect';
 import { CustomDatePicker } from './components/CustomDatePicker';
-import { Check, Wallet, Trash2 as TrashIcon, Settings, ChevronDown, ChevronUp } from 'lucide-react';
+import { Check, Wallet, Trash2 as TrashIcon, Settings, ChevronDown, ChevronUp, Search } from 'lucide-react';
 
 // Inline Edit Form - renders directly below a transaction row
 function InlineEditForm({ expense, categories, todayStr, onSave, onCancel }) {
@@ -146,6 +146,9 @@ export default function App() {
   const [category, setCategory] = useState('Food & Dining');
   const [date, setDate] = useState(todayStr);
   const [formError, setFormError] = useState('');
+
+  // Search State
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Quick Logs & Budget State
   const [quickLogs, setQuickLogs] = useState([]);
@@ -366,6 +369,36 @@ export default function App() {
       return { dateKey, items, dayTotal };
     });
   }, [expenses, todayStr]);
+
+  const searchedGroupedExpenses = React.useMemo(() => {
+    const query = (searchQuery || '').trim().toLowerCase();
+    if (!query) return groupedExpenses;
+
+    const groups = {};
+    (expenses || []).forEach(item => {
+      if (!item) return;
+      const titleMatch = (item.title || '').toLowerCase().includes(query);
+      const catMatch = (item.category || '').toLowerCase().includes(query);
+      if (titleMatch || catMatch) {
+        const dKey = item.date || todayStr;
+        if (!groups[dKey]) groups[dKey] = [];
+        groups[dKey].push(item);
+      }
+    });
+
+    const sortedDateKeys = Object.keys(groups).sort((a, b) => (b > a ? 1 : b < a ? -1 : 0));
+
+    return sortedDateKeys.map(dateKey => {
+      const items = (groups[dateKey] || []).sort((a, b) => {
+        const timeA = a.created_at || a.date || '';
+        const timeB = b.created_at || b.date || '';
+        return timeB > timeA ? 1 : timeB < timeA ? -1 : 0;
+      });
+
+      const dayTotal = items.reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
+      return { dateKey, items, dayTotal };
+    });
+  }, [expenses, searchQuery, todayStr, groupedExpenses]);
 
   // If user profile is not set, render 1-time full screen setup page
   if (!isSetupDone) {
@@ -692,6 +725,67 @@ export default function App() {
             </div>
           </div>
 
+          {/* Real-time Expense Search Bar */}
+          <div style={{ margin: '0 1.25rem 1rem' }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              background: '#FFFFFF',
+              border: searchQuery ? '1.5px solid #10B981' : '1px solid var(--border)',
+              borderRadius: '16px',
+              padding: '0.65rem 0.9rem',
+              boxShadow: searchQuery ? '0 4px 12px rgba(16, 185, 129, 0.15)' : '0 2px 6px rgba(0,0,0,0.02)',
+              transition: 'all 0.2s ease'
+            }}>
+              <Search size={18} color={searchQuery ? '#10B981' : '#94A3B8'} style={{ marginRight: '0.6rem', flexShrink: 0 }} />
+              <input
+                type="text"
+                placeholder="Search expenses (e.g. Uber, Dinner)..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{
+                  border: 'none',
+                  outline: 'none',
+                  width: '100%',
+                  fontSize: '0.9rem',
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                  background: 'transparent'
+                }}
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  style={{
+                    border: 'none',
+                    background: '#F1F5F9',
+                    borderRadius: '50%',
+                    width: '22px',
+                    height: '22px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    color: '#64748B',
+                    padding: 0,
+                    marginLeft: '0.4rem'
+                  }}
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+
+            {/* Search Results Summary Header */}
+            {searchQuery.trim() && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.45rem 0.2rem 0', fontSize: '0.775rem', fontWeight: 800, color: '#047857' }}>
+                <span>Found {searchedGroupedExpenses.reduce((s, g) => s + g.items.length, 0)} result(s) for "{searchQuery}"</span>
+                <span>Total: ₹{searchedGroupedExpenses.reduce((s, g) => s + g.dayTotal, 0).toLocaleString('en-IN')}</span>
+              </div>
+            )}
+          </div>
+
           {/* Daily Transactions */}
           <div style={{ margin: '0 1.25rem' }}>
 
@@ -707,9 +801,18 @@ export default function App() {
                   Tap <span style={{ color: '#10B981', fontWeight: 700 }}>+ Add Expense</span> below to log an entry
                 </p>
               </div>
+            ) : searchedGroupedExpenses.length === 0 ? (
+              <div style={{ background: '#FFFFFF', border: '1px solid var(--border)', borderRadius: '20px', padding: '1.75rem 1rem', textAlign: 'center' }}>
+                <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                  No expenses found
+                </h3>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                  No entries match <span style={{ color: '#10B981', fontWeight: 700 }}>"{searchQuery}"</span>
+                </p>
+              </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                {groupedExpenses.map(group => (
+                {searchedGroupedExpenses.map(group => (
                   <div key={group.dateKey}>
                     
                     {/* Date Divider Header */}
@@ -911,53 +1014,31 @@ export default function App() {
       </h2>
     </div>
 
-    {/* Top Quick Actions Bar (Monthly Budget & Export CSV - Always 2 columns) */}
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem', marginBottom: '1rem' }}>
+    {/* Top Quick Actions Bar (Full-Width Monthly Budget) */}
+    <div style={{ marginBottom: '1rem' }}>
       <button
         type="button"
         onClick={() => setIsBudgetModalOpen(!isBudgetModalOpen)}
         style={{ 
+          width: '100%',
           background: isBudgetModalOpen ? '#10B981' : '#FFFFFF', 
           border: `1px solid ${isBudgetModalOpen ? '#10B981' : 'var(--border)'}`, 
           color: isBudgetModalOpen ? '#FFFFFF' : 'var(--text-primary)', 
-          padding: '0.6rem 0.85rem', 
-          borderRadius: '14px', 
-          fontSize: '0.825rem', 
+          padding: '0.75rem 1rem', 
+          borderRadius: '16px', 
+          fontSize: '0.9rem', 
           fontWeight: 800, 
           cursor: 'pointer', 
           display: 'flex', 
           alignItems: 'center', 
           justifyContent: 'center',
-          gap: '0.4rem',
-          boxShadow: isBudgetModalOpen ? '0 4px 12px rgba(16, 185, 129, 0.25)' : '0 2px 4px rgba(0,0,0,0.02)',
+          gap: '0.5rem',
+          boxShadow: isBudgetModalOpen ? '0 4px 12px rgba(16, 185, 129, 0.25)' : '0 2px 6px rgba(0,0,0,0.02)',
           transition: 'all 0.15s ease'
         }}
       >
-        <Wallet size={16} color={isBudgetModalOpen ? '#FFFFFF' : '#10B981'} />
-        <span>{isBudgetModalOpen ? 'Close Budget' : 'Monthly Budget'}</span>
-      </button>
-
-      <button 
-        type="button"
-        onClick={handleExportCSV}
-        style={{ 
-          background: '#FFFFFF', 
-          border: '1px solid var(--border)', 
-          color: 'var(--text-primary)', 
-          padding: '0.6rem 0.85rem', 
-          borderRadius: '14px', 
-          fontSize: '0.825rem', 
-          fontWeight: 800, 
-          cursor: 'pointer', 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center',
-          gap: '0.4rem',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
-        }}
-      >
-        <Download size={16} color="#3B82F6" />
-        <span>Export CSV</span>
+        <Wallet size={18} color={isBudgetModalOpen ? '#FFFFFF' : '#10B981'} />
+        <span>{isBudgetModalOpen ? 'Close Monthly Budget' : '📋 Manage Monthly Budget'}</span>
       </button>
     </div>
 
@@ -970,31 +1051,6 @@ export default function App() {
             currentBudget={monthlyBudget}
             onSave={handleSaveBudget}
           />
-
-          {/* Analytical Overview Cards (This Month vs Last Month) */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
-            
-            <div style={{ background: '#FFFFFF', padding: '1rem', borderRadius: '16px', border: '1px solid var(--border)' }}>
-              <div style={{ fontSize: '0.725rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Daily Routine Living</div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#059669', marginTop: '0.2rem' }}>
-                ₹{thisMonthRoutineTotal.toLocaleString('en-IN')}
-              </div>
-              <div style={{ fontSize: '0.675rem', fontWeight: 600, color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-                Last Month: ₹{lastMonthRoutineTotal.toLocaleString('en-IN')}
-              </div>
-            </div>
-
-            <div style={{ background: '#FFFFFF', padding: '1rem', borderRadius: '16px', border: '1px solid var(--border)' }}>
-              <div style={{ fontSize: '0.725rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Fixed Bills & Rent</div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#DC2626', marginTop: '0.2rem' }}>
-                ₹{thisMonthFixedTotal.toLocaleString('en-IN')}
-              </div>
-              <div style={{ fontSize: '0.675rem', fontWeight: 600, color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-                Last Month: ₹{lastMonthFixedTotal.toLocaleString('en-IN')}
-              </div>
-            </div>
-
-          </div>
 
           {/* 4 Action Buttons: Total, Today, Yesterday, Filter */}
           <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', alignItems: 'center' }}>
@@ -1066,6 +1122,17 @@ export default function App() {
               catTotals[i.category] = (catTotals[i.category] || 0) + a;
             });
 
+            // Current month per-category totals for monthly budget allocation cross-checking
+            const currentMonthCatTotals = {};
+            (expenses || []).forEach(i => {
+              if (!i || !i.date || typeof i.date !== 'string') return;
+              const parts = i.date.split('-').map(Number);
+              if (parts[0] === cYear && parts[1] === cMonth) {
+                const a = Number(i.amount) || 0;
+                currentMonthCatTotals[i.category] = (currentMonthCatTotals[i.category] || 0) + a;
+              }
+            });
+
             const sorted = Object.entries(catTotals)
               .map(([name, tot]) => ({ name, tot, pct: sum > 0 ? Math.round((tot/sum)*100) : 0 }))
               .sort((a,b) => b.tot - a.tot);
@@ -1082,9 +1149,12 @@ export default function App() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                 {sorted.map((c, i) => {
                   const allocated = monthlyBudget?.allocations?.[c.name] || 0;
-                  const remaining = allocated - c.tot;
-                  const barPct = allocated > 0 ? Math.min(100, Math.round((c.tot / allocated) * 100)) : c.pct;
-                  const isOver = allocated > 0 && c.tot > allocated;
+                  
+                  // Evaluate monthly budget against current month's spent when viewing Total/Preset
+                  const budgetSpent = (dateFilter.mode === 'PRESET' && dateFilter.preset === 'ALL') ? (currentMonthCatTotals[c.name] || 0) : c.tot;
+                  const remaining = allocated - budgetSpent;
+                  const barPct = allocated > 0 ? Math.min(100, Math.round((budgetSpent / allocated) * 100)) : c.pct;
+                  const isOver = allocated > 0 && budgetSpent > allocated;
                   const barColor = isOver ? '#EF4444' : '#10B981';
                   const isExpanded = expandedCategory === c.name;
 
@@ -1108,7 +1178,7 @@ export default function App() {
                           {isExpanded ? <ChevronUp size={16} color="#10B981" /> : <ChevronDown size={16} color="#94A3B8" />}
                         </div>
                         <span style={{ fontWeight: 800, color: barColor }}>
-                          ₹{c.tot.toLocaleString('en-IN')}{allocated > 0 ? ` / ₹${allocated.toLocaleString('en-IN')}` : ` (${c.pct}%)`}
+                          {allocated > 0 ? `₹${budgetSpent.toLocaleString('en-IN')} / ₹${allocated.toLocaleString('en-IN')}` : `₹${c.tot.toLocaleString('en-IN')} (${c.pct}%)`}
                         </span>
                       </div>
 
