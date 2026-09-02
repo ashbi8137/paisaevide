@@ -148,10 +148,6 @@ function InlineEditForm({ expense, categories, todayStr, onSave, onCancel, onDel
           style={{ flex: 1, padding: '0.55rem', borderRadius: '12px', background: '#FEF2F2', border: '1px solid #FCA5A5', color: '#EF4444', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem' }}>
           <TrashIcon size={13} /> Delete
         </button>
-        <button type="button" onClick={onCancel}
-          style={{ flex: 1, padding: '0.55rem', borderRadius: '12px', background: '#F1F5F9', border: '1px solid #E2E8F0', color: '#475569', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}>
-          Cancel
-        </button>
         <button type="submit"
           style={{ flex: 1.5, padding: '0.55rem', borderRadius: '12px', background: '#10B981', border: 'none', color: '#FFF', fontSize: '0.8rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem', boxShadow: '0 3px 10px rgba(16,185,129,0.3)' }}>
           <Check size={14} /> Save
@@ -788,7 +784,7 @@ export default function App() {
               <Search size={18} color={searchQuery ? '#10B981' : '#94A3B8'} style={{ marginRight: '0.6rem', flexShrink: 0 }} />
               <input
                 type="text"
-                placeholder="Search expenses (e.g. Uber, Dinner)..."
+                placeholder="Search expenses (e.g. Uber, Dinner)"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{
@@ -1196,6 +1192,30 @@ export default function App() {
 
             return (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+
+                {/* Total Expense Summary Card */}
+                <div style={{
+                  background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+                  borderRadius: '18px',
+                  padding: '1rem 1.25rem',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  boxShadow: '0 4px 14px rgba(16, 185, 129, 0.25)'
+                }}>
+                  <div>
+                    <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'rgba(255,255,255,0.8)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.2rem' }}>
+                      Total Spent
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.75)', fontWeight: 600 }}>
+                      {dateFilter.label || 'All Time'} · {sorted.length} {sorted.length === 1 ? 'category' : 'categories'}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '1.65rem', fontWeight: 900, color: '#FFFFFF', letterSpacing: '-0.02em' }}>
+                    ₹{sum.toLocaleString('en-IN')}
+                  </div>
+                </div>
+
                 {sorted.map((c, i) => {
                   const allocated = monthlyBudget?.allocations?.[c.name] || 0;
                   
