@@ -27,7 +27,7 @@ import {
   Edit3
 } from 'lucide-react';
 
-import { CATEGORY_DEFINITIONS, autoDetectCategory } from './utils/parser';
+import { CATEGORY_DEFINITIONS, autoDetectCategory, localDateStr, localDateOffset, localMonthStr } from './utils/parser';
 import { 
   fetchExpenses, 
   addExpense, 
@@ -173,11 +173,11 @@ export default function App() {
   const [expandedCategory, setExpandedCategory] = useState(null);
 
   // Monthly Budget State
-  const currentMonth = new Date().toISOString().substring(0, 7); // e.g. '2026-08'
+  const currentMonth = localMonthStr(); // local timezone, e.g. '2026-09'
   const [monthlyBudget, setMonthlyBudget] = useState(null);
 
   // Form State
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = localDateStr(); // local timezone 'YYYY-MM-DD'
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('Food & Dining');
@@ -361,9 +361,7 @@ export default function App() {
   };
 
   // Calculations (MUST be before any early return so hooks stay consistent)
-  const yesterdayObj = new Date();
-  yesterdayObj.setDate(yesterdayObj.getDate() - 1);
-  const yesterdayStr = yesterdayObj.toISOString().split('T')[0];
+  const yesterdayStr = localDateStr(localDateOffset(-1));
 
   const MONTH_NAMES = [
     'January', 'February', 'March', 'April', 'May', 'June',

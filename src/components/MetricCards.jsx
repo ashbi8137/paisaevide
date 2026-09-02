@@ -1,14 +1,11 @@
 import React from 'react';
 import { IndianRupee, TrendingUp, TrendingDown, Calendar, ShieldAlert, Sparkles, Coffee, Home } from 'lucide-react';
+import { localDateStr, localDateOffset } from '../utils/parser';
 
 export function MetricCards({ expenses, moveInDate = '2026-07-19' }) {
-  // Current local date format YYYY-MM-DD
-  const todayStr = new Date().toISOString().split('T')[0];
-  
-  // Yesterday local date format YYYY-MM-DD
-  const yesterdayObj = new Date();
-  yesterdayObj.setDate(yesterdayObj.getDate() - 1);
-  const yesterdayStr = yesterdayObj.toISOString().split('T')[0];
+  // Local timezone date strings — avoids UTC midnight rollover bug
+  const todayStr = localDateStr();
+  const yesterdayStr = localDateStr(localDateOffset(-1));
 
   // Calculate totals
   let grandTotal = 0;

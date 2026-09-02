@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { Plus, Zap, Tag, Calendar, CreditCard, Check, Sparkles } from 'lucide-react';
-import { autoDetectCategory, isRoutineExpense } from '../utils/parser';
+import { autoDetectCategory, isRoutineExpense, localDateStr } from '../utils/parser';
 
 export function QuickEntryForm({ categories, onAddExpense, onOpenAddCategoryModal }) {
-  const today = new Date().toISOString().split('T')[0];
+  const today = localDateStr(); // local timezone, not UTC
   
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');

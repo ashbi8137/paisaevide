@@ -1,19 +1,13 @@
 import React, { useState } from 'react';
 import { PieChart, Filter, Calendar, Layers, IndianRupee } from 'lucide-react';
-import { CATEGORY_DEFINITIONS } from '../utils/parser';
+import { CATEGORY_DEFINITIONS, localDateStr, localDateOffset } from '../utils/parser';
 
 export function CategoryAnalytics({ expenses, categories = CATEGORY_DEFINITIONS }) {
   const [filterRange, setFilterRange] = useState('ALL'); // ALL, TODAY, YESTERDAY, THIS_WEEK
 
-  const todayStr = new Date().toISOString().split('T')[0];
-  
-  const yesterdayObj = new Date();
-  yesterdayObj.setDate(yesterdayObj.getDate() - 1);
-  const yesterdayStr = yesterdayObj.toISOString().split('T')[0];
-
-  const sevenDaysAgoObj = new Date();
-  sevenDaysAgoObj.setDate(sevenDaysAgoObj.getDate() - 7);
-  const sevenDaysAgoStr = sevenDaysAgoObj.toISOString().split('T')[0];
+  const todayStr = localDateStr();
+  const yesterdayStr = localDateStr(localDateOffset(-1));
+  const sevenDaysAgoStr = localDateStr(localDateOffset(-7));
 
   // Filter expenses based on selected range
   const filteredExpenses = expenses.filter(item => {

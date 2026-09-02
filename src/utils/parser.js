@@ -138,3 +138,37 @@ export function parseNotepadText(text, currentYear = 2026) {
 
   return results;
 }
+
+// ─── Local Timezone Date Utilities ─────────────────────────────────────────
+// IMPORTANT: Always use these instead of new Date().toISOString().split('T')[0]
+// toISOString() returns UTC — for IST (UTC+5:30) users, midnight to 5:30am IST
+// would wrongly show the previous day's date.
+
+/**
+ * Returns today's date as 'YYYY-MM-DD' in the device's local timezone.
+ */
+export function localDateStr(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * Returns a date offset by `offsetDays` days from today, in local timezone.
+ * e.g. localDateStr(localDateOffset(-1)) → yesterday
+ */
+export function localDateOffset(offsetDays) {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  return d;
+}
+
+/**
+ * Returns the current month as 'YYYY-MM' in local timezone.
+ */
+export function localMonthStr(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  return `${y}-${m}`;
+}

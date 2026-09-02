@@ -1,13 +1,10 @@
 import React, { useState } from 'react';
 import { Filter, X, Check } from 'lucide-react';
 import { CustomDatePicker } from './CustomDatePicker';
+import { localDateStr, localDateOffset } from '../utils/parser';
 
 export function DateFilterModal({ isOpen, onClose, activeFilter, onApplyFilter, todayStr }) {
-  const yesterday = (() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    return d.toISOString().split('T')[0];
-  })();
+  const yesterday = localDateStr(localDateOffset(-1));
 
   const [fromDate, setFromDate] = useState(activeFilter.fromDate || todayStr);
   const [toDate, setToDate] = useState(activeFilter.toDate || todayStr);

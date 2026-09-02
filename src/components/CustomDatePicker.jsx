@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { localDateStr, localDateOffset } from '../utils/parser';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -36,12 +37,9 @@ export function CustomDatePicker({ value, onChange, maxDate, label = "Date" }) {
     setViewMonth(d.getMonth());
   }, [value, isOpen]);
 
-  const todayObj = new Date();
-  const todayStr = todayObj.toISOString().split('T')[0];
-
-  const yesterdayObj = new Date();
-  yesterdayObj.setDate(yesterdayObj.getDate() - 1);
-  const yesterdayStr = yesterdayObj.toISOString().split('T')[0];
+  // Use local timezone (not UTC) to avoid midnight date rollover bug
+  const todayStr = localDateStr();
+  const yesterdayStr = localDateStr(localDateOffset(-1));
 
   // Helper to format string YYYY-MM-DD
   const formatDateStr = (y, m, d) => {
