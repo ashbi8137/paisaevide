@@ -623,7 +623,7 @@ export default function App() {
           </div>
 
           {/* Summary Strip */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', margin: '0 0.75rem 1rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', margin: '0 0.5rem 0.85rem' }}>
             {/* Card 1: THIS MONTH */}
             <div style={{ background: '#FFFFFF', padding: '0.85rem 1rem', borderRadius: '16px', border: '1px solid var(--border)' }}>
               <div style={{ fontSize: '0.725rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>This Month</div>
@@ -648,7 +648,7 @@ export default function App() {
           </div>
 
           {/* Customizable 1-Tap Quick Log Grid */}
-          <div style={{ margin: '0 0.75rem 1.25rem' }}>
+          <div style={{ margin: '0 0.5rem 0.85rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.65rem' }}>
               <span style={{ fontSize: '0.775rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 1-Tap Quick Log
@@ -726,7 +726,7 @@ export default function App() {
           </div>
 
           {/* Real-time Expense Search Bar */}
-          <div style={{ margin: '0 0.75rem 1rem' }}>
+          <div style={{ margin: '0 0.5rem 0.85rem' }}>
             <div style={{
               display: 'flex',
               alignItems: 'center',
@@ -787,7 +787,7 @@ export default function App() {
           </div>
 
           {/* Daily Transactions */}
-          <div style={{ margin: '0 0.75rem' }}>
+          <div style={{ margin: '0 0.5rem' }}>
 
             {expenses.length === 0 ? (
               <div style={{ background: '#FFFFFF', border: '1px solid var(--border)', borderRadius: '20px', padding: '1.75rem 1rem', textAlign: 'center' }}>
@@ -908,7 +908,7 @@ export default function App() {
 
       {/* TAB 2: ADD ENTRY */}
       {activeTab === 'add' && (
-        <div style={{ padding: '0 0.75rem' }}>
+        <div style={{ padding: '0 0.5rem' }}>
           <h2 style={{ fontSize: '1.35rem', fontWeight: 800, margin: '1rem 0 1.25rem' }}>Add New Expense</h2>
 
           <form onSubmit={handleAddSubmit} className="clean-card" style={{ margin: 0 }}>
@@ -1005,7 +1005,7 @@ export default function App() {
 
       {/* TAB 3: STATS & REPORTS */}
       {activeTab === 'stats' && (
-        <div style={{ padding: '0 0.75rem' }}>
+        <div style={{ padding: '0 0.5rem' }}>
           
     {/* Page Title */}
     <div style={{ margin: '1rem 0 0.85rem' }}>

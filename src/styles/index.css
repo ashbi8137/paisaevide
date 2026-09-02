@@ -44,7 +44,7 @@ body {
 /* Shell */
 .app-shell {
   width: 100%;
-  max-width: 440px;
+  max-width: 540px;
   min-height: 100vh;
   background: var(--bg-page);
   display: flex;
@@ -53,9 +53,16 @@ body {
   padding-bottom: 110px;
 }
 
+@media (max-width: 600px) {
+  .app-shell {
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+}
+
 /* Header */
 .top-header {
-  padding: 1.25rem 0.75rem 0.75rem;
+  padding: 1rem 0.5rem 0.5rem;
   background: var(--bg-page);
   display: flex;
   justify-content: space-between;
@@ -85,8 +92,8 @@ body {
   background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
   color: #FFFFFF;
   border-radius: var(--radius-card);
-  padding: 1.5rem;
-  margin: 0.5rem 0.75rem 1rem;
+  padding: 1.5rem 1.25rem;
+  margin: 0.5rem 0.5rem 0.85rem;
   box-shadow: 0 10px 25px rgba(15, 23, 42, 0.15);
 }
 
@@ -146,7 +153,7 @@ body {
   color: var(--text-primary);
   cursor: pointer;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
-  transition: all 0.1s ease;
+  transition: all 0.15s ease;
   text-align: center;
 }
 
@@ -162,8 +169,9 @@ body {
   background: #FFFFFF;
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
-  padding: 1.25rem;
-  margin: 0 1.25rem 1rem;
+  padding: 1.15rem 1rem;
+  margin: 0 0 0.75rem;
+  width: 100%;
   box-shadow: var(--shadow-soft);
 }
 
