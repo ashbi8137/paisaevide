@@ -19,7 +19,7 @@ class ErrorBoundary extends Component {
 
   handleClearCache = () => {
     try {
-      localStorage.clear();
+      // Safe reload without wiping user data
       window.location.reload();
     } catch (e) {
       window.location.reload();
