@@ -54,6 +54,11 @@ export function BudgetModal({ isOpen, onClose, initialMonth, categories = [], on
   const { monthName, year } = getMonthDisplay(selectedMonth);
   const isThisMonth = selectedMonth === activeCurrentMonth;
 
+  // Alphabetical A-to-Z sorting
+  const sortedCategories = [...categories].sort((a, b) => 
+    (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })
+  );
+
   const handleAllocationChange = (categoryName, value) => {
     setAllocations((prev) => ({
       ...prev,
@@ -312,7 +317,7 @@ export function BudgetModal({ isOpen, onClose, initialMonth, categories = [], on
               boxSizing: 'border-box'
             }}
           >
-            {categories.map((c) => (
+            {sortedCategories.map((c) => (
               <div
                 key={c.id || c.name}
                 style={{

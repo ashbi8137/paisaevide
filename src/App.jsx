@@ -36,6 +36,9 @@ import {
   clearAllExpenses,
   getStoredCategories,
   saveCustomCategory,
+  getUserSession,
+  saveUserSession,
+  clearUserSession,
   getLockedUser,
   saveLockedUser,
   getBudget,
@@ -54,6 +57,7 @@ import { DateFilterModal } from './components/DateFilterModal';
 import { BudgetModal } from './components/BudgetModal';
 import { CustomCategorySelect } from './components/CustomCategorySelect';
 import { CustomDatePicker } from './components/CustomDatePicker';
+import { UserProfileModal } from './components/UserProfileModal';
 import { Check, Wallet, Trash2 as TrashIcon, Settings, ChevronDown, ChevronUp, Search } from 'lucide-react';
 
 // Inline Edit Form - renders directly below a transaction row
@@ -170,6 +174,7 @@ export default function App() {
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
   const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
+  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [expandedCategory, setExpandedCategory] = useState(null);
 
   // Monthly Budget State
@@ -205,12 +210,15 @@ export default function App() {
       setCategories([...CATEGORY_DEFINITIONS, ...customCats]);
     }
 
-    const savedName = getLockedUser();
-    if (savedName) {
-      setUserName(savedName);
+    const session = getUserSession();
+    if (session && session.accountKey) {
+      setUserName(session.name);
       setIsSetupDone(true);
+      loadData(session);
+    } else {
+      setIsSetupDone(false);
+      setExpenses([]);
     }
-    loadData();
 
     // Load budget specifically for current month
     const budget = getBudget(currentMonth);
@@ -238,16 +246,24 @@ export default function App() {
     setMonthlyBudget(getBudget(currentMonth));
   };
 
-  const loadData = async () => {
-    const loaded = await fetchExpenses();
+  const loadData = async (session) => {
+    const loaded = await fetchExpenses(session);
     setExpenses(loaded || []);
   };
 
-  const handleSetupComplete = (name) => {
-    const saved = saveLockedUser(name);
-    setUserName(saved);
+  const handleSetupComplete = ({ name, pin }) => {
+    const session = saveUserSession(name, pin);
+    setUserName(session.name);
     setIsSetupDone(true);
-    loadData();
+    loadData(session);
+  };
+
+  const handleLogout = () => {
+    clearUserSession();
+    setUserName('');
+    setIsSetupDone(false);
+    setExpenses([]);
+    setMonthlyBudget(null);
   };
 
   // Clean Quick Presets
@@ -622,14 +638,17 @@ export default function App() {
       <header className="top-header">
         <h1 className="app-title">Paisaevide</h1>
         
-        {/* Permanent Locked User Badge (Non-clickable) */}
-        <div 
+        {/* User Account Badge */}
+        <button 
+          type="button"
+          onClick={() => setIsUserModalOpen(true)}
           className="date-pill"
-          style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', border: '1px solid #10B981', background: '#ECFDF5', color: '#047857' }}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', border: '1px solid #10B981', background: '#ECFDF5', color: '#047857', cursor: 'pointer' }}
+          title="Account Settings & Lock"
         >
           <User size={14} />
           <span>{userName}</span>
-        </div>
+        </button>
       </header>
 
       {/* TAB 1: HOME */}
@@ -1361,7 +1380,20 @@ export default function App() {
         onAddCategory={handleAddCategory}
       />
 
-
+      {/* User Profile & Account Modal */}
+      <UserProfileModal
+        isOpen={isUserModalOpen}
+        onClose={() => setIsUserModalOpen(false)}
+        currentName={userName}
+        onSaveName={(name) => {
+          const session = getUserSession();
+          if (session) {
+            const updated = saveUserSession(name, session.pin);
+            setUserName(updated.name);
+          }
+        }}
+        onLogout={handleLogout}
+      />
 
     </div>
   );

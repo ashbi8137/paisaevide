@@ -5,7 +5,12 @@ export function CustomCategorySelect({ categories = [], value, onChange, label =
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
 
-  const selectedCategory = categories.find(c => c.name === value) || { name: value || 'Select Category' };
+  // Alphabetical A-to-Z sorting for effortless scanning
+  const sortedCategories = [...categories].sort((a, b) => 
+    (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })
+  );
+
+  const selectedCategory = sortedCategories.find(c => c.name === value) || { name: value || 'Select Category' };
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -92,7 +97,7 @@ export function CustomCategorySelect({ categories = [], value, onChange, label =
             animation: 'fadeIn 0.15s ease'
           }}
         >
-          {categories.map((c) => {
+          {sortedCategories.map((c) => {
             const isSelected = c.name === value;
             return (
               <div

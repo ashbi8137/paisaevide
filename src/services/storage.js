@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
 const STORAGE_KEYS = {
+  USER_SESSION: 'paisaevide_session_v1',
   EXPENSES: 'paisaevide_expenses_v10',
   LOCKED_USER: 'paisaevide_user_v10',
   SUPABASE_CONFIG: 'expenso_supabase_cfg',
@@ -37,16 +38,73 @@ export function getSupabaseConfig() {
   };
 }
 
-// Permanent Locked User Name Storage
+// ─── User Identity & Private Session Management ─────────────────────────────
+
+/**
+ * Generates a deterministic, unique private account key from a normalized Name + PIN.
+ * This guarantees privacy: without the exact Name + PIN, nobody can generate or access this account's data.
+ */
+export function generateAccountKey(name, pin) {
+  const cleanName = (name || '').trim().toLowerCase();
+  const cleanPin = (pin || '').trim();
+  let hash = 0;
+  const str = `${cleanName}:${cleanPin}`;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash |= 0;
+  }
+  const hex = Math.abs(hash).toString(16).padStart(8, '0');
+  const safeName = cleanName.replace(/[^a-z0-9]/g, '') || 'user';
+  return `usr_${safeName}_${hex}`;
+}
+
+export function getUserSession() {
+  const saved = localStorage.getItem(STORAGE_KEYS.USER_SESSION);
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      if (parsed && parsed.accountKey && parsed.name) return parsed;
+    } catch (e) {}
+  }
+  return null;
+}
+
+export function saveUserSession(name, pin) {
+  const trimmedName = (name || '').trim();
+  const trimmedPin = (pin || '').trim();
+  const accountKey = generateAccountKey(trimmedName, trimmedPin);
+  const session = {
+    name: trimmedName,
+    pin: trimmedPin,
+    accountKey
+  };
+  localStorage.setItem(STORAGE_KEYS.USER_SESSION, JSON.stringify(session));
+  localStorage.setItem(STORAGE_KEYS.LOCKED_USER, trimmedName);
+  return session;
+}
+
+export function clearUserSession() {
+  localStorage.removeItem(STORAGE_KEYS.USER_SESSION);
+  localStorage.removeItem(STORAGE_KEYS.LOCKED_USER);
+}
+
+// Backward compatibility helper
 export function getLockedUser() {
-  return localStorage.getItem(STORAGE_KEYS.LOCKED_USER) || '';
+  const session = getUserSession();
+  return session ? session.name : (localStorage.getItem(STORAGE_KEYS.LOCKED_USER) || '');
 }
 
 export function saveLockedUser(name) {
-  const current = getLockedUser();
-  if (current) return current;
-  localStorage.setItem(STORAGE_KEYS.LOCKED_USER, name.trim());
   return name.trim();
+}
+
+function getUserExpensesKey(accountKey) {
+  return accountKey ? `paisaevide_expenses_${accountKey}` : STORAGE_KEYS.EXPENSES;
+}
+
+function getUserBudgetsKey(accountKey) {
+  return accountKey ? `paisaevide_budgets_${accountKey}` : STORAGE_KEYS.BUDGETS;
 }
 
 // Custom Categories Storage
@@ -65,41 +123,70 @@ export function saveCustomCategory(categoryObj) {
   return updated;
 }
 
-// Helper: Prepare clean payload matching Supabase columns
-function toCleanPayload(item) {
+// Helper: Prepare clean payload matching Supabase columns with strict user isolation
+function toCleanPayload(item, accountKey, userName) {
   return {
     id: String(item.id),
     created_at: item.created_at || new Date().toISOString(),
     date: String(item.date),
     title: String(item.title),
     amount: Number(item.amount),
-    category: String(item.category)
+    category: String(item.category),
+    device_id: accountKey || item.device_id || null,
+    user_name: userName || item.user_name || null
   };
 }
 
-// Expense CRUD operations (Bulletproof ID-Merged Dual Sync — Zero Data Loss)
-export async function fetchExpenses() {
-  const localSaved = JSON.parse(localStorage.getItem(STORAGE_KEYS.EXPENSES) || '[]');
+// ─── Expense CRUD (Strictly Filtered by User Account Key) ───────────────────
+
+export async function fetchExpenses(activeSession) {
+  const session = activeSession || getUserSession();
+  if (!session || !session.accountKey) {
+    return [];
+  }
+
+  const { accountKey, name } = session;
+  const storageKey = getUserExpensesKey(accountKey);
+  const localSaved = JSON.parse(localStorage.getItem(storageKey) || '[]');
   const client = getSupabaseClient();
 
   if (client) {
     try {
-      // Query all expenses from Supabase
+      // One-time legacy claim for Ashbin's existing September records (if any have device_id == null)
+      if (name.toLowerCase() === 'ashbin') {
+        try {
+          const { data: legacyRows } = await client
+            .from('expenses')
+            .select('*')
+            .is('device_id', null);
+          if (legacyRows && legacyRows.length > 0) {
+            const legacyIds = legacyRows.map(r => r.id);
+            await client
+              .from('expenses')
+              .update({ device_id: accountKey, user_name: name })
+              .in('id', legacyIds);
+          }
+        } catch (migErr) {
+          console.warn("Legacy claim notice:", migErr);
+        }
+      }
+
+      // Query ONLY this user's expenses from Supabase
       const { data, error } = await client
         .from('expenses')
         .select('*')
+        .eq('device_id', accountKey)
         .order('date', { ascending: false });
 
       if (!error && Array.isArray(data)) {
-        // Merge Local Storage and Remote Supabase rows by item ID so NO items (Tea, Lunch, etc.) are ever lost!
         const itemMap = new Map();
         
-        // Add local items first
+        // Add local items
         localSaved.forEach(item => {
           if (item && item.id) itemMap.set(item.id, item);
         });
 
-        // Merge remote items from Supabase
+        // Merge remote items belonging to this user
         data.forEach(item => {
           if (item && item.id) itemMap.set(item.id, item);
         });
@@ -110,13 +197,13 @@ export async function fetchExpenses() {
           return dateB.localeCompare(dateA);
         });
 
-        localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(merged));
+        localStorage.setItem(storageKey, JSON.stringify(merged));
 
-        // Auto-sync any local items that are missing from Supabase in the background
+        // Auto-sync any local items missing from Supabase for this user
         const remoteIds = new Set(data.map(i => i.id));
         const missingRemote = merged.filter(i => !remoteIds.has(i.id));
         if (missingRemote.length > 0) {
-          const payloads = missingRemote.map(toCleanPayload);
+          const payloads = missingRemote.map(item => toCleanPayload(item, accountKey, name));
           client.from('expenses').upsert(payloads, { onConflict: 'id' }).then(() => {}).catch(() => {});
         }
 
@@ -130,26 +217,33 @@ export async function fetchExpenses() {
   return localSaved;
 }
 
-export async function addExpense(item) {
+export async function addExpense(item, activeSession) {
+  const session = activeSession || getUserSession();
+  const accountKey = session?.accountKey;
+  const userName = session?.name;
+  const storageKey = getUserExpensesKey(accountKey);
+
   const newItem = {
     id: item.id || 'exp_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36),
     title: item.title,
     amount: Number(item.amount),
     category: item.category,
     date: item.date,
-    created_at: new Date().toISOString()
+    created_at: new Date().toISOString(),
+    device_id: accountKey,
+    user_name: userName
   };
 
-  // 1. Save locally immediately to guarantee 0 data loss
-  const current = JSON.parse(localStorage.getItem(STORAGE_KEYS.EXPENSES) || '[]');
+  // 1. Save locally to this user's scoped storage
+  const current = JSON.parse(localStorage.getItem(storageKey) || '[]');
   const updated = [newItem, ...current];
-  localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(updated));
+  localStorage.setItem(storageKey, JSON.stringify(updated));
 
-  // 2. Insert to Supabase cloud database with clean 6-column payload
+  // 2. Insert into Supabase with this user's accountKey
   const client = getSupabaseClient();
-  if (client) {
+  if (client && accountKey) {
     try {
-      const payload = toCleanPayload(newItem);
+      const payload = toCleanPayload(newItem, accountKey, userName);
       const { error } = await client.from('expenses').upsert([payload], { onConflict: 'id' });
       if (error) {
         console.warn("Supabase sync notice:", error.message);
@@ -162,16 +256,21 @@ export async function addExpense(item) {
   return newItem;
 }
 
-export async function updateExpense(updatedItem) {
-  const current = JSON.parse(localStorage.getItem(STORAGE_KEYS.EXPENSES) || '[]');
-  const updatedList = current.map(item => item.id === updatedItem.id ? { ...item, ...updatedItem } : item);
-  localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(updatedList));
+export async function updateExpense(updatedItem, activeSession) {
+  const session = activeSession || getUserSession();
+  const accountKey = session?.accountKey;
+  const userName = session?.name;
+  const storageKey = getUserExpensesKey(accountKey);
+
+  const current = JSON.parse(localStorage.getItem(storageKey) || '[]');
+  const updatedList = current.map(item => item.id === updatedItem.id ? { ...item, ...updatedItem, device_id: accountKey, user_name: userName } : item);
+  localStorage.setItem(storageKey, JSON.stringify(updatedList));
 
   const client = getSupabaseClient();
-  if (client) {
+  if (client && accountKey) {
     try {
-      const payload = toCleanPayload(updatedItem);
-      await client.from('expenses').update(payload).eq('id', updatedItem.id);
+      const payload = toCleanPayload(updatedItem, accountKey, userName);
+      await client.from('expenses').update(payload).eq('id', updatedItem.id).eq('device_id', accountKey);
     } catch (e) {
       console.error("Supabase update error:", e);
     }
@@ -180,38 +279,48 @@ export async function updateExpense(updatedItem) {
   return updatedItem;
 }
 
-export async function deleteExpense(id) {
-  const current = JSON.parse(localStorage.getItem(STORAGE_KEYS.EXPENSES) || '[]');
+export async function deleteExpense(id, activeSession) {
+  const session = activeSession || getUserSession();
+  const accountKey = session?.accountKey;
+  const storageKey = getUserExpensesKey(accountKey);
+
+  const current = JSON.parse(localStorage.getItem(storageKey) || '[]');
   const updated = current.filter(item => item.id !== id);
-  localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(updated));
+  localStorage.setItem(storageKey, JSON.stringify(updated));
 
   const client = getSupabaseClient();
-  if (client) {
+  if (client && accountKey) {
     try {
-      await client.from('expenses').delete().eq('id', id);
+      await client.from('expenses').delete().eq('id', id).eq('device_id', accountKey);
     } catch (e) {}
   }
 
   return updated;
 }
 
-export async function clearAllExpenses() {
-  localStorage.removeItem(STORAGE_KEYS.EXPENSES);
+export async function clearAllExpenses(activeSession) {
+  const session = activeSession || getUserSession();
+  const accountKey = session?.accountKey;
+  const storageKey = getUserExpensesKey(accountKey);
+
+  localStorage.removeItem(storageKey);
 
   const client = getSupabaseClient();
-  if (client) {
+  if (client && accountKey) {
     try {
-      await client.from('expenses').delete().neq('id', 'keep_nothing');
+      await client.from('expenses').delete().eq('device_id', accountKey);
     } catch (e) {
       console.error("Supabase clear error:", e);
     }
   }
 }
 
-// ─── Monthly Budget Storage ───────────────────────────────────────
+// ─── Monthly Budget Storage (Scoped by User) ───────────────────────
 
 function getAllBudgets() {
-  const saved = localStorage.getItem(STORAGE_KEYS.BUDGETS);
+  const session = getUserSession();
+  const storageKey = getUserBudgetsKey(session?.accountKey);
+  const saved = localStorage.getItem(storageKey);
   if (saved) {
     try { return JSON.parse(saved); } catch (e) {}
   }
@@ -219,7 +328,9 @@ function getAllBudgets() {
 }
 
 function saveAllBudgets(budgets) {
-  localStorage.setItem(STORAGE_KEYS.BUDGETS, JSON.stringify(budgets));
+  const session = getUserSession();
+  const storageKey = getUserBudgetsKey(session?.accountKey);
+  localStorage.setItem(storageKey, JSON.stringify(budgets));
 }
 
 /**

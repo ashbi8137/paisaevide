@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { User, X, Check } from 'lucide-react';
+import { User, X, Check, LogOut, Shield } from 'lucide-react';
 
-export function UserProfileModal({ isOpen, onClose, currentName, onSaveName }) {
+export function UserProfileModal({ isOpen, onClose, currentName, onSaveName, onLogout }) {
   const [nameInput, setNameInput] = useState(currentName || '');
 
   if (!isOpen) return null;
@@ -24,7 +24,7 @@ export function UserProfileModal({ isOpen, onClose, currentName, onSaveName }) {
               <User size={18} color="#10B981" />
             </div>
             <h2 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-              {currentName ? 'Edit Your Name' : 'Welcome to Expenso!'}
+              Profile & Account
             </h2>
           </div>
           {currentName && (
@@ -40,16 +40,12 @@ export function UserProfileModal({ isOpen, onClose, currentName, onSaveName }) {
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
-            Enter your name to personalize your homepage header. Your data is 100% private to your device!
-          </p>
-
           <div className="clean-input-group" style={{ marginBottom: 0 }}>
             <label className="clean-label">Your Name</label>
             <input 
               type="text"
               className="clean-input"
-              placeholder="e.g. Ashbin, Rahul, Sarah"
+              placeholder="e.g. Ashbin"
               value={nameInput}
               onChange={(e) => setNameInput(e.target.value)}
               autoFocus
@@ -61,25 +57,56 @@ export function UserProfileModal({ isOpen, onClose, currentName, onSaveName }) {
             type="submit" 
             style={{
               width: '100%',
-              padding: '0.85rem 1rem',
+              padding: '0.8rem 1rem',
               borderRadius: '14px',
               background: '#10B981',
               border: 'none',
               color: '#FFFFFF',
-              fontSize: '0.95rem',
+              fontSize: '0.9rem',
               fontWeight: 800,
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               gap: '0.4rem',
-              marginTop: '0.5rem',
-              boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
+              boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)'
             }}
           >
-            <Check size={18} />
-            <span>Save Name</span>
+            <Check size={16} />
+            <span>Update Name</span>
           </button>
+
+          {onLogout && (
+            <div style={{ borderTop: '1px dashed #E2E8F0', paddingTop: '0.85rem', marginTop: '0.25rem' }}>
+              <button 
+                type="button" 
+                onClick={() => {
+                  if (window.confirm("Lock and switch account? You will need your PIN to sign back in.")) {
+                    onLogout();
+                    onClose();
+                  }
+                }}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem 1rem',
+                  borderRadius: '14px',
+                  background: '#FEF2F2',
+                  border: '1px solid #FCA5A5',
+                  color: '#DC2626',
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.4rem'
+                }}
+              >
+                <LogOut size={16} />
+                <span>Switch / Lock Account</span>
+              </button>
+            </div>
+          )}
 
         </form>
 
