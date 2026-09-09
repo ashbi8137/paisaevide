@@ -1385,13 +1385,6 @@ export default function App() {
         isOpen={isUserModalOpen}
         onClose={() => setIsUserModalOpen(false)}
         currentName={userName}
-        onSaveName={(name) => {
-          const session = getUserSession();
-          if (session) {
-            const updated = saveUserSession(name, session.pin);
-            setUserName(updated.name);
-          }
-        }}
         onLogout={handleLogout}
       />
 
