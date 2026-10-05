@@ -243,12 +243,13 @@ export default function App() {
 
   const handleSaveBudget = ({ month, budget }) => {
     // Refresh monthly budget state
-    setMonthlyBudget(getBudget(currentMonth));
+    setMonthlyBudget(getBudget(month || currentMonth));
   };
 
   const loadData = async (session) => {
     const loaded = await fetchExpenses(session);
     setExpenses(loaded || []);
+    setMonthlyBudget(getBudget(currentMonth));
   };
 
   const handleSetupComplete = ({ name, pin }) => {
@@ -1174,6 +1175,12 @@ export default function App() {
 
             const activeBudget = getBudget(activeBudgetMonth);
 
+            // Month display label (e.g. October 2026)
+            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+            const activeMonthParts = (activeBudgetMonth || '').split('-');
+            const activeMonthIdx = parseInt(activeMonthParts[1], 10) - 1;
+            const activeMonthLabel = (activeMonthIdx >= 0 && activeMonthIdx < 12) ? `${monthNames[activeMonthIdx]} ${activeMonthParts[0]}` : activeBudgetMonth;
+
             // Calculate category spent specifically for this active budget month
             const activeMonthCatTotals = {};
             (expenses || []).forEach(i => {
@@ -1184,11 +1191,42 @@ export default function App() {
               }
             });
 
-            const sorted = Object.entries(catTotals)
-              .map(([name, tot]) => ({ name, tot, pct: sum > 0 ? Math.round((tot/sum)*100) : 0 }))
-              .sort((a,b) => b.tot - a.tot);
+            // Overall Month Budget Summary calculations
+            const totalAllocated = Object.values(activeBudget?.allocations || {}).reduce((acc, val) => acc + (Number(val) || 0), 0);
+            const monthSalary = Number(activeBudget?.salary) || 0;
+            const budgetTarget = monthSalary > 0 ? monthSalary : totalAllocated;
+            const monthTotalSpent = Object.values(activeMonthCatTotals).reduce((acc, val) => acc + (Number(val) || 0), 0);
+            const remainingMonthBudget = budgetTarget - monthTotalSpent;
+            const isMonthOver = budgetTarget > 0 && monthTotalSpent > budgetTarget;
+            const overallBudgetPct = budgetTarget > 0 ? Math.min(100, Math.round((monthTotalSpent / budgetTarget) * 100)) : 0;
 
-            if (sorted.length === 0) {
+            // Include both categories with spending AND any budgeted categories (even if ₹0 spent so far)
+            const allDisplayCatNames = new Set(Object.keys(catTotals));
+            if (activeBudget?.allocations) {
+              Object.keys(activeBudget.allocations).forEach(catName => {
+                if (Number(activeBudget.allocations[catName]) > 0) {
+                  allDisplayCatNames.add(catName);
+                }
+              });
+            }
+
+            const sorted = Array.from(allDisplayCatNames)
+              .map(name => {
+                const tot = catTotals[name] || 0;
+                return {
+                  name,
+                  tot,
+                  pct: sum > 0 ? Math.round((tot / sum) * 100) : 0
+                };
+              })
+              .sort((a, b) => {
+                if (b.tot !== a.tot) return b.tot - a.tot;
+                const allocB = activeBudget?.allocations?.[b.name] || 0;
+                const allocA = activeBudget?.allocations?.[a.name] || 0;
+                return allocB - allocA;
+              });
+
+            if (sorted.length === 0 && budgetTarget === 0) {
               return (
                 <div style={{ background: '#FFFFFF', border: '1px solid var(--border)', borderRadius: '20px', padding: '2rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                   No entries for this period.
@@ -1198,6 +1236,58 @@ export default function App() {
 
             return (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+
+                {/* Overall Monthly Budget Card — Always shows when a budget is set */}
+                {budgetTarget > 0 && (
+                  <div style={{
+                    background: '#FFFFFF',
+                    border: '1px solid var(--border)',
+                    borderRadius: '18px',
+                    padding: '1.1rem 1.25rem',
+                    boxShadow: 'var(--shadow-soft)'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.45rem' }}>
+                      <div>
+                        <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          📋 {activeMonthLabel} Budget Overview
+                        </div>
+                        <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0F172A', marginTop: '0.2rem' }}>
+                          ₹{monthTotalSpent.toLocaleString('en-IN')} <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#64748B' }}>of ₹{budgetTarget.toLocaleString('en-IN')}</span>
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '0.25rem 0.65rem',
+                          borderRadius: '20px',
+                          fontSize: '0.75rem',
+                          fontWeight: 800,
+                          background: isMonthOver ? '#FEF2F2' : '#ECFDF5',
+                          color: isMonthOver ? '#DC2626' : '#047857',
+                          border: `1px solid ${isMonthOver ? '#FCA5A5' : '#A7F3D0'}`
+                        }}>
+                          {isMonthOver ? `⚠️ Over by ₹${Math.abs(remainingMonthBudget).toLocaleString('en-IN')}` : `₹${remainingMonthBudget.toLocaleString('en-IN')} Available`}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div style={{ width: '100%', height: '8px', background: '#F1F5F9', borderRadius: '4px', overflow: 'hidden', margin: '0.55rem 0 0.35rem' }}>
+                      <div style={{
+                        width: `${overallBudgetPct}%`,
+                        height: '100%',
+                        background: isMonthOver ? '#EF4444' : overallBudgetPct > 85 ? '#F59E0B' : '#10B981',
+                        borderRadius: '4px',
+                        transition: 'width 0.4s ease'
+                      }} />
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.725rem', color: '#64748B', fontWeight: 600 }}>
+                      <span>{overallBudgetPct}% spent</span>
+                      <span>{monthSalary > 0 && monthSalary > totalAllocated ? `₹${(monthSalary - totalAllocated).toLocaleString('en-IN')} unallocated` : ''}</span>
+                    </div>
+                  </div>
+                )}
 
                 {/* Total Expense Summary Card — only shown when a filter is active */}
                 {(dateFilter.mode === 'DATE_RANGE' || dateFilter.mode === 'MONTH_RANGE' || (dateFilter.mode === 'PRESET' && dateFilter.preset !== 'ALL')) && (

@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { localMonthStr } from '../utils/parser';
 
 const STORAGE_KEYS = {
   USER_SESSION: 'paisaevide_session_v1',
@@ -171,7 +172,7 @@ export async function fetchExpenses(activeSession) {
         }
       }
 
-      // Query ONLY this user's expenses from Supabase
+      // Query ONLY this user's records from Supabase
       const { data, error } = await client
         .from('expenses')
         .select('*')
@@ -179,15 +180,61 @@ export async function fetchExpenses(activeSession) {
         .order('date', { ascending: false });
 
       if (!error && Array.isArray(data)) {
+        // 1. Separate Cloud Budgets from Regular Expenses
+        const cloudBudgetRows = data.filter(r => r && r.category === '__SYSTEM_BUDGET__');
+        const regularRemoteExpenses = data.filter(r => r && r.category !== '__SYSTEM_BUDGET__');
+
+        // Restore any cloud budgets to local storage
+        if (cloudBudgetRows.length > 0) {
+          const budgets = getAllBudgets();
+          let budgetUpdated = false;
+          cloudBudgetRows.forEach(r => {
+            try {
+              const m = r.date.substring(0, 7);
+              const parsed = JSON.parse(r.title);
+              if (!budgets[m] || (budgets[m].salary === 0 && Object.keys(budgets[m].allocations || {}).length === 0)) {
+                budgets[m] = {
+                  salary: Number(r.amount) || Number(parsed.salary) || 0,
+                  allocations: parsed.allocations || {}
+                };
+                budgetUpdated = true;
+              }
+            } catch (e) {}
+          });
+          if (budgetUpdated) {
+            saveAllBudgets(budgets);
+          }
+        }
+
+        // Auto-upload any local budgets missing from cloud
+        const allLocalBudgets = getAllBudgets();
+        const existingCloudBudgetMonths = new Set(cloudBudgetRows.map(r => r.date.substring(0, 7)));
+        Object.entries(allLocalBudgets).forEach(([m, b]) => {
+          if (!existingCloudBudgetMonths.has(m) && b && (b.salary > 0 || Object.keys(b.allocations || {}).length > 0)) {
+            const budgetRecord = {
+              id: `bgt_${accountKey}_${m}`,
+              created_at: new Date().toISOString(),
+              date: `${m}-01`,
+              title: JSON.stringify({ salary: Number(b.salary) || 0, allocations: b.allocations || {} }),
+              amount: Number(b.salary) || 0,
+              category: '__SYSTEM_BUDGET__',
+              device_id: accountKey,
+              user_name: name
+            };
+            client.from('expenses').upsert([budgetRecord], { onConflict: 'id' }).then(() => {}).catch(() => {});
+          }
+        });
+
+        // 2. Merge Regular Expenses
         const itemMap = new Map();
         
-        // Add local items
-        localSaved.forEach(item => {
+        // Add local items (excluding any system budget entries)
+        localSaved.filter(r => r && r.category !== '__SYSTEM_BUDGET__').forEach(item => {
           if (item && item.id) itemMap.set(item.id, item);
         });
 
-        // Merge remote items belonging to this user
-        data.forEach(item => {
+        // Merge remote regular items
+        regularRemoteExpenses.forEach(item => {
           if (item && item.id) itemMap.set(item.id, item);
         });
 
@@ -199,8 +246,8 @@ export async function fetchExpenses(activeSession) {
 
         localStorage.setItem(storageKey, JSON.stringify(merged));
 
-        // Auto-sync any local items missing from Supabase for this user
-        const remoteIds = new Set(data.map(i => i.id));
+        // Auto-sync any local regular items missing from Supabase for this user
+        const remoteIds = new Set(regularRemoteExpenses.map(i => i.id));
         const missingRemote = merged.filter(i => !remoteIds.has(i.id));
         if (missingRemote.length > 0) {
           const payloads = missingRemote.map(item => toCleanPayload(item, accountKey, name));
@@ -315,14 +362,28 @@ export async function clearAllExpenses(activeSession) {
   }
 }
 
-// ─── Monthly Budget Storage (Scoped by User) ───────────────────────
+// ─── Monthly Budget Storage (Scoped by User + Cloud Synced) ────────
 
 function getAllBudgets() {
   const session = getUserSession();
   const storageKey = getUserBudgetsKey(session?.accountKey);
   const saved = localStorage.getItem(storageKey);
   if (saved) {
-    try { return JSON.parse(saved); } catch (e) {}
+    try {
+      const parsed = JSON.parse(saved);
+      if (parsed && typeof parsed === 'object') return parsed;
+    } catch (e) {}
+  }
+  // Check fallback legacy storage key (paisaevide_budgets_v1) to rescue any pre-existing budget
+  const legacySaved = localStorage.getItem(STORAGE_KEYS.BUDGETS);
+  if (legacySaved) {
+    try {
+      const parsed = JSON.parse(legacySaved);
+      if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
+        localStorage.setItem(storageKey, JSON.stringify(parsed));
+        return parsed;
+      }
+    } catch (e) {}
   }
   return {};
 }
@@ -335,17 +396,28 @@ function saveAllBudgets(budgets) {
 
 /**
  * Get budget for a specific month.
- * @param {string} month - e.g. '2026-08'
+ * @param {string} month - e.g. '2026-09'
  * @returns {{ salary: number, allocations: Record<string, number> } | null}
  */
 export function getBudget(month) {
   const budgets = getAllBudgets();
+  if (budgets[month] && (budgets[month].salary > 0 || Object.keys(budgets[month].allocations || {}).length > 0)) {
+    return budgets[month];
+  }
+
+  // If requesting the current month and no budget set yet, auto-carry forward from the last configured month
+  const activeMonth = localMonthStr();
+  if (month === activeMonth) {
+    return autoCarryForwardBudget(activeMonth);
+  }
+
   return budgets[month] || null;
 }
 
 /**
  * Save budget for a specific month.
- * @param {string} month - e.g. '2026-08'
+ * Automatically saves locally and syncs to Supabase Cloud so it is NEVER lost.
+ * @param {string} month - e.g. '2026-09'
  * @param {number} salary
  * @param {Record<string, number>} allocations - { 'Food & Dining': 8000, ... }
  */
@@ -353,27 +425,50 @@ export function saveBudget(month, salary, allocations) {
   const budgets = getAllBudgets();
   budgets[month] = { salary: Number(salary) || 0, allocations: allocations || {} };
   saveAllBudgets(budgets);
+
+  // Sync to Supabase Cloud with private accountKey
+  const client = getSupabaseClient();
+  const session = getUserSession();
+  if (client && session?.accountKey) {
+    const budgetRecord = {
+      id: `bgt_${session.accountKey}_${month}`,
+      created_at: new Date().toISOString(),
+      date: `${month}-01`,
+      title: JSON.stringify({ salary: Number(salary) || 0, allocations: allocations || {} }),
+      amount: Number(salary) || 0,
+      category: '__SYSTEM_BUDGET__',
+      device_id: session.accountKey,
+      user_name: session.name
+    };
+    client.from('expenses').upsert([budgetRecord], { onConflict: 'id' }).then(() => {}).catch(err => {
+      console.warn("Supabase budget sync notice:", err);
+    });
+  }
+
   return budgets[month];
 }
 
 /**
- * Auto-carry forward: if current month has no budget, copy from previous month.
- * @param {string} currentMonth - e.g. '2026-08'
+ * Auto-carry forward: if target month has no budget, copy from the most recent configured month.
+ * @param {string} targetMonth - e.g. '2026-10'
  * @returns {{ salary: number, allocations: Record<string, number> } | null}
  */
-export function autoCarryForwardBudget(currentMonth) {
-  const existing = getBudget(currentMonth);
-  if (existing) return existing;
+export function autoCarryForwardBudget(targetMonth) {
+  const allBudgets = getAllBudgets();
+  if (allBudgets[targetMonth] && (allBudgets[targetMonth].salary > 0 || Object.keys(allBudgets[targetMonth].allocations || {}).length > 0)) {
+    return allBudgets[targetMonth];
+  }
 
-  // Calculate previous month string
-  const [y, m] = currentMonth.split('-').map(Number);
-  const prevDate = new Date(y, m - 2, 1); // m-1 is current month (0-indexed), m-2 is previous
-  const prevMonth = prevDate.getFullYear() + '-' + String(prevDate.getMonth() + 1).padStart(2, '0');
+  // Look back at all prior months to find the most recent configured budget
+  const prevMonths = Object.keys(allBudgets)
+    .filter(m => m < targetMonth && allBudgets[m] && (allBudgets[m].salary > 0 || Object.keys(allBudgets[m].allocations || {}).length > 0))
+    .sort()
+    .reverse();
 
-  const prevBudget = getBudget(prevMonth);
-  if (prevBudget) {
-    saveBudget(currentMonth, prevBudget.salary, { ...prevBudget.allocations });
-    return getBudget(currentMonth);
+  if (prevMonths.length > 0) {
+    const prev = allBudgets[prevMonths[0]];
+    const carried = saveBudget(targetMonth, prev.salary, { ...prev.allocations });
+    return carried;
   }
 
   return null;
